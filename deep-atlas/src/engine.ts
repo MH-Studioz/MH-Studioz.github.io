@@ -374,6 +374,10 @@ export class Game {
     return this.entries.length;
   }
 
+  getHits(): number {
+    return this.hits;
+  }
+
   stop(): void {
     this.running = false;
     this.paused = false;

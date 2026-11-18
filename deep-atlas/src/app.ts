@@ -16,6 +16,25 @@ import {
   type ModeId,
   type Prompt,
 } from './prompts';
+import {
+  addEntries,
+  clearClub,
+  clubBoard,
+  createClub,
+  joinClub,
+  readClub,
+  recordClubRun,
+  writeClub,
+  type Club,
+  type ClubEntry,
+} from './club';
+import {
+  PartyClient,
+  type PartyLobby,
+  type PartyPlayer,
+  type PartyRound,
+  type PartyStatus,
+} from './net';
 
 /* ------------------------------------------------------------------ */
 /* Config                                                              */
@@ -76,6 +95,15 @@ const MODES: ModeDef[] = [
       'The map dives to a mystery coordinate. Identify the place under the crosshair — or any real place within 300 km of it. The closer your guess, the deeper the cut.',
     meta: ['5 PINS', '300 KM TOLERANCE', 'REVERSE MODE'],
   },
+  {
+    id: 'party',
+    name: 'PARTY DESCENT',
+    tag: 'PARTY DESCENT',
+    card: 'Seven prompts, one room',
+    blurb:
+      'One host, one seed, one scoreboard. Everyone in the room dives the same seven prompts at the same time — share the code for a 1v1 or stack the lobby.',
+    meta: ['7 PROMPTS', '20 SECONDS', 'SHARED SEED'],
+  },
 ];
 
 const MODE_BY_ID = new Map(MODES.map((m) => [m.id, m]));
@@ -110,6 +138,7 @@ interface DailySave {
 const KEY_DAILY = 'deepatlas.daily.v1';
 const KEY_RECORDS = 'deepatlas.records.v1';
 const KEY_MUTED = 'deepatlas.muted.v1';
+const KEY_IDENTITY = 'deepatlas.identity.v1';
 
 function readJson<T>(key: string, fallback: T): T {
   try {
@@ -151,6 +180,14 @@ function cleanupEmojis(entries: Entry[]): string {
     .join('');
 }
 
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 function gradeFor(total: number): string {
   if (total >= 6000) return 'MAGMA CLASS';
   if (total >= 4800) return 'CORE HUNTER';
@@ -183,6 +220,11 @@ export class App {
   private records: Record<string, number> = {};
   private feedbackTimer: number | null = null;
   private lastTickSecond = -1;
+  private activeMode: ModeId = 'daily';
+  private identity: { id: string; name: string } = { id: '', name: '' };
+  private club: Club | null = null;
+  private party = new PartyClient();
+  private partyPlayers: PartyPlayer[] = [];
 
   constructor() {
     this.sound = new SoundEngine(this.readMuted());
@@ -200,9 +242,23 @@ export class App {
     this.daily = readJson<DailySave>(KEY_DAILY, { date: '', streak: 0, best: 0, history: [] });
     this.records = readJson<Record<string, number>>(KEY_RECORDS, {});
 
+    const identity = readJson<{ id: string; name: string }>(KEY_IDENTITY, { id: '', name: '' });
+    if (!identity.id) identity.id = `d-${Math.random().toString(36).slice(2, 10)}`;
+    if (!identity.name) identity.name = `DIVER-${identity.id.slice(-2).toUpperCase()}`;
+    this.identity = identity;
+    writeJson(KEY_IDENTITY, identity);
+    this.club = readClub();
+
+    this.party.onLobby = (lobby) => this.handlePartyLobby(lobby);
+    this.party.onStatus = (status, message) => this.handlePartyStatus(status, message);
+    this.party.onStart = (round) => this.beginPartyRound(round);
+    this.party.onScores = (players) => this.handlePartyScores(players);
+    this.party.onClub = (code, entries) => this.receiveClub(code, entries);
+
     this.buildModeTabs();
     this.buildRegions();
     this.wire();
+    this.renderClubHome();
     this.refreshHome();
     this.syncSound();
     this.updateRail(0);
@@ -221,7 +277,7 @@ export class App {
   private buildModeTabs(): void {
     const tabs = el('mode-tabs');
     tabs.innerHTML = '';
-    MODES.forEach((mode, index) => {
+    MODES.filter((mode) => mode.id !== 'party').forEach((mode, index) => {
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'mode-card';
@@ -308,7 +364,45 @@ export class App {
 
     el('btn-share').addEventListener('click', () => this.copyShare());
     el('btn-home').addEventListener('click', () => this.showHome());
-    el('btn-again').addEventListener('click', () => this.start(this.mode, this.region));
+    el('btn-again').addEventListener('click', () => {
+      if (this.result?.config.mode === 'party') this.openParty();
+      else this.start(this.mode, this.region);
+    });
+
+    el('btn-party-host').addEventListener('click', () => this.openParty());
+    el('btn-party-join').addEventListener('click', () => this.openParty(true));
+    el('btn-club-board').addEventListener('click', () => this.openClub());
+    el('btn-party-close').addEventListener('click', () => {
+      el('modal-party').hidden = true;
+    });
+    el('modal-party').addEventListener('click', (event) => {
+      if (event.target === el('modal-party')) el('modal-party').hidden = true;
+    });
+    el('btn-party-create').addEventListener('click', () => void this.hostParty());
+    el('btn-party-enter').addEventListener('click', () => void this.joinParty());
+    el('btn-party-start').addEventListener('click', () => {
+      const round = this.party.startRound();
+      if (round) this.beginPartyRound(round);
+      else this.setPartyStatus('OPEN A PARTY FIRST');
+    });
+    el('btn-party-leave').addEventListener('click', () => this.leaveParty());
+    el('btn-party-copy').addEventListener('click', () => void this.copyPartyCode());
+    el('party-code').addEventListener('input', (event) => {
+      const input = event.target as HTMLInputElement;
+      input.value = input.value.replace(/\D/g, '').slice(0, 6);
+    });
+
+    el('btn-club-close').addEventListener('click', () => {
+      el('modal-club').hidden = true;
+    });
+    el('modal-club').addEventListener('click', (event) => {
+      if (event.target === el('modal-club')) el('modal-club').hidden = true;
+    });
+    el('btn-club-create').addEventListener('click', () => this.createClubNow());
+    el('btn-club-join').addEventListener('click', () => this.joinClubNow());
+    el('btn-club-copy').addEventListener('click', () => void this.copyClubCode());
+    el('btn-club-leave').addEventListener('click', () => this.leaveClub());
+    el<HTMLInputElement>('party-name').value = this.identity.name;
 
     el('btn-sound').addEventListener('click', () => this.toggleSound());
     el('btn-sound-hud').addEventListener('click', () => this.toggleSound());
@@ -330,6 +424,14 @@ export class App {
     const hudVisible = !el('hud').hidden;
 
     if (event.key === 'Escape') {
+      if (!el('modal-party').hidden) {
+        el('modal-party').hidden = true;
+        return;
+      }
+      if (!el('modal-club').hidden) {
+        el('modal-club').hidden = true;
+        return;
+      }
       if (helpOpen) {
         this.toggleHelp(false);
         return;
@@ -364,9 +466,10 @@ export class App {
 
   /* ---------------- round flow ---------------- */
 
-  private start(mode: ModeId = this.mode, region: RegionId = this.region): void {
+  private start(mode: ModeId = this.mode, region: RegionId = this.region, seedOverride?: number): void {
     this.sound.unlock();
-    this.mode = mode;
+    this.activeMode = mode;
+    if (mode !== 'party') this.mode = mode;
     this.region = region;
     this.result = null;
 
@@ -389,7 +492,8 @@ export class App {
     this.lastTickSecond = -1;
 
     const seed =
-      mode === 'daily' ? hashSeed(`${dateKey()}-deep-atlas`) : Math.floor(Math.random() * 0xffffffff);
+      seedOverride ??
+      (mode === 'daily' ? hashSeed(`${dateKey()}-deep-atlas`) : Math.floor(Math.random() * 0xffffffff));
     const config: RoundConfig = {
       mode,
       region,
@@ -429,7 +533,7 @@ export class App {
     el('pinpoint-note').hidden = !pinpoint;
     el('prompt-hint').textContent = pinpoint
       ? 'NAME IT OR ANY PLACE WITHIN 300 KM'
-      : this.mode === 'hardcore'
+      : this.activeMode === 'hardcore'
         ? 'NO LABELS ON THIS MAP — TRUST YOUR MEMORY'
         : 'TYPO-TOLERANT · ENTER TO SUBMIT';
 
@@ -458,7 +562,7 @@ export class App {
     }
 
     el('timer').classList.toggle('warning', secondsLeft <= 5);
-    if (this.mode === 'endless') {
+    if (this.activeMode === 'endless') {
       el('time-bank').textContent = `BANK ${Math.round(totalSeconds)}s`;
     }
 
@@ -513,6 +617,9 @@ export class App {
     }, 130);
 
     this.updateRail(this.game.getTotalDepth());
+    if (this.activeMode === 'party') {
+      this.party.pushScore(this.game.getTotalDepth(), this.game.getHits(), false);
+    }
 
     el('reveal').hidden = false;
   }
@@ -551,8 +658,11 @@ export class App {
     this.result = result;
     this.sound.finish();
     this.saveProgress(result);
+    this.recordClub(result);
+    if (result.config.mode === 'party') this.party.pushScore(result.totalDepth, result.hits, true);
     this.renderSummary(result);
 
+    el('party-strip').hidden = true;
     el('hud').hidden = true;
     el('reveal').hidden = true;
     el('pinpoint-note').hidden = true;
@@ -644,6 +754,10 @@ export class App {
         ? result.entries[result.entries.length - 1]?.prompt.target
         : undefined;
 
+    el('btn-again').textContent = result.config.mode === 'party' ? 'PARTY LOBBY' : 'RUN IT AGAIN';
+    if (result.config.mode === 'party') this.renderPartyResult();
+    else el('party-result').hidden = true;
+
     this.map.setHardcore(result.config.mode === 'hardcore');
     window.setTimeout(() => this.map.showSummary(result.entries, pinpointTarget), 220);
   }
@@ -697,6 +811,8 @@ export class App {
 
   private showHome(): void {
     this.game.stop();
+    el('party-strip').hidden = true;
+    el('party-result').hidden = true;
     el('hud').hidden = true;
     el('modal-pause').hidden = true;
     el('pinpoint-note').hidden = true;
@@ -734,6 +850,322 @@ export class App {
   private toggleHelp(open: boolean): void {
     el('modal-help').hidden = !open;
     if (open) this.sound.click();
+  }
+
+  /* ---------------- party ---------------- */
+
+  private openParty(joinMode = false): void {
+    el('modal-party').hidden = false;
+    if (this.party.isLive()) {
+      this.showPartyLobby();
+      return;
+    }
+    el('party-setup').hidden = false;
+    el('party-lobby').hidden = true;
+    el<HTMLInputElement>('party-name').value = this.identity.name;
+    if (joinMode) el<HTMLInputElement>('party-code').focus();
+  }
+
+  private handlePartyLobby(lobby: PartyLobby | null): void {
+    if (!lobby) {
+      el('party-lobby').hidden = true;
+      if (!el('modal-party').hidden) el('party-setup').hidden = false;
+      return;
+    }
+    this.showPartyLobby();
+    this.handlePartyScores(lobby.players);
+    this.syncClub();
+  }
+
+  private showPartyLobby(): void {
+    const lobby = this.party.lobby;
+    el('party-setup').hidden = true;
+    el('party-lobby').hidden = false;
+    if (!lobby) return;
+
+    el('party-code-big').textContent = lobby.code;
+    el('party-code-chip').textContent = `#${lobby.code}`;
+
+    const list = el('party-members');
+    list.innerHTML = lobby.players
+      .map(
+        (player) =>
+          `<li class="${player.id === this.identity.id ? 'you' : ''}"><span>${escapeHtml(player.name)}</span><em>${
+            player.id === lobby.hostId ? 'HOST' : 'DIVER'
+          }</em></li>`
+      )
+      .join('');
+
+    const host = this.party.role === 'host';
+    const start = el<HTMLButtonElement>('btn-party-start');
+    start.hidden = !host;
+    start.disabled = lobby.players.length < 2;
+    start.textContent = lobby.players.length < 2 ? 'WAITING FOR A DIVER' : 'START PARTY';
+    if (!host) this.setPartyStatus('WAITING FOR THE HOST TO START');
+  }
+
+  private handlePartyStatus(status: PartyStatus, message: string): void {
+    this.setPartyStatus(message);
+    if (status === 'error' || status === 'closed') this.toast(message);
+    if (status === 'error') {
+      el('party-lobby').hidden = true;
+      el('party-setup').hidden = false;
+    }
+  }
+
+  private setPartyStatus(message: string): void {
+    el('party-status').textContent = message;
+  }
+
+  private async hostParty(): Promise<void> {
+    const name = this.identityName();
+    this.setPartyStatus('OPENING PARTY…');
+    await this.party.host(
+      { id: this.identity.id, name },
+      this.club ? { code: this.club.code, entries: this.club.entries } : null
+    );
+  }
+
+  private async joinParty(): Promise<void> {
+    const code = el<HTMLInputElement>('party-code').value.replace(/\D/g, '').slice(0, 6);
+    if (code.length !== 6) {
+      this.setPartyStatus('ENTER THE SIX-DIGIT CODE');
+      this.toast('PARTY CODES ARE SIX DIGITS');
+      return;
+    }
+    const name = this.identityName();
+    this.setPartyStatus('CONNECTING…');
+    await this.party.join(code, { id: this.identity.id, name }, this.club?.code ?? '');
+  }
+
+  private identityName(): string {
+    const input = el<HTMLInputElement>('party-name');
+    const name = (input.value.trim() || this.identity.name || 'DIVER').slice(0, 14) || 'DIVER';
+    this.identity.name = name;
+    writeJson(KEY_IDENTITY, this.identity);
+    return name;
+  }
+
+  private beginPartyRound(round: PartyRound): void {
+    el('modal-party').hidden = true;
+    el('party-strip').hidden = false;
+    el('party-code-chip').textContent = `#${this.party.lobby?.code ?? ''}`;
+    this.handlePartyScores(this.party.lobby?.players ?? []);
+    this.start('party', 'world', round.seed);
+  }
+
+  private handlePartyScores(players: PartyPlayer[]): void {
+    this.partyPlayers = [...players].sort((a, b) => b.depth - a.depth || b.hits - a.hits);
+    if (!el('party-strip').hidden) this.renderPartyStrip();
+    if (!el('party-result').hidden) this.renderPartyResult();
+  }
+
+  private renderPartyStrip(): void {
+    const ranked = [...this.partyPlayers].sort((a, b) => b.depth - a.depth || b.hits - a.hits);
+    const selfIndex = ranked.findIndex((player) => player.id === this.identity.id);
+    const shown = ranked.slice(0, 4);
+    if (selfIndex >= 4) shown.push(ranked[selfIndex]);
+    el('party-strip-list').innerHTML = shown
+      .map(
+        (player) =>
+          `<li class="${player.id === this.identity.id ? 'you' : ''}"><span>${escapeHtml(player.name)}</span><b>${formatNumber(player.depth)}m</b><i>${player.done ? '✓' : ''}</i></li>`
+      )
+      .join('');
+  }
+
+  private renderPartyResult(): void {
+    const block = el('party-result');
+    block.hidden = false;
+    const ranked = [...this.partyPlayers].sort((a, b) => b.depth - a.depth || b.hits - a.hits);
+    const done = ranked.filter((player) => player.done).length;
+    el('party-result-note').textContent = `${done} / ${ranked.length} FINISHED`;
+    el('party-result-list').innerHTML = ranked
+      .map(
+        (player, index) =>
+          `<li class="${player.id === this.identity.id ? 'you' : ''}">
+            <span class="pr-rank">${String(index + 1).padStart(2, '0')}</span>
+            <span class="pr-name">${escapeHtml(player.name)}${player.id === this.identity.id ? ' <em>YOU</em>' : ''}</span>
+            <span class="pr-state">${player.done ? 'DONE' : 'DIVING'}</span>
+            <span class="pr-depth">${formatNumber(player.depth)} m</span>
+          </li>`
+      )
+      .join('');
+  }
+
+  private leaveParty(): void {
+    this.party.leave();
+    this.partyPlayers = [];
+    el('modal-party').hidden = true;
+    el('party-strip').hidden = true;
+    this.toast('LEFT THE PARTY');
+  }
+
+  private async copyPartyCode(): Promise<void> {
+    const code = this.party.lobby?.code;
+    if (code) await this.copyText(code);
+  }
+
+  /* ---------------- club ---------------- */
+
+  private openClub(): void {
+    el('modal-club').hidden = false;
+    this.renderClubBoard();
+  }
+
+  private createClubNow(): void {
+    if (this.club) {
+      this.toast('YOU ARE ALREADY IN A CLUB');
+      return;
+    }
+    const name = el<HTMLInputElement>('club-name-input').value.trim();
+    if (name.length < 2) {
+      this.toast('NAME THE CLUB FIRST');
+      return;
+    }
+    this.club = createClub(name);
+    writeClub(this.club);
+    this.renderClubHome();
+    this.renderClubBoard();
+    this.syncClub();
+    this.toast(`CLUB ${this.club.code} CREATED`);
+  }
+
+  private joinClubNow(): void {
+    if (this.club) {
+      this.toast('LEAVE YOUR CLUB FIRST');
+      return;
+    }
+    const raw = el<HTMLInputElement>('club-code-input').value;
+    const club = joinClub(raw);
+    if (!club) {
+      this.toast('CLUB CODES ARE AT LEAST FOUR CHARACTERS');
+      return;
+    }
+    this.club = club;
+    writeClub(club);
+    this.renderClubHome();
+    this.renderClubBoard();
+    this.syncClub();
+    this.toast(`JOINED ${club.code}`);
+  }
+
+  private leaveClub(): void {
+    if (!this.club) return;
+    clearClub();
+    this.club = null;
+    this.renderClubHome();
+    this.renderClubBoard();
+    this.toast('LEFT THE CLUB');
+  }
+
+  private renderClubHome(): void {
+    const name = el('club-name');
+    const line = el('club-code-line');
+    const mini = el('club-mini');
+
+    if (!this.club) {
+      name.textContent = 'NO CLUB YET';
+      line.textContent = 'FOUND A CREW OR JOIN ONE WITH A CODE';
+      mini.innerHTML = '';
+      return;
+    }
+
+    const board = clubBoard(this.club.entries);
+    name.textContent = this.club.name;
+    line.textContent = `CODE ${this.club.code} · ${board.length} DIVER${board.length === 1 ? '' : 'S'}`;
+    mini.innerHTML = board.length
+      ? board
+          .slice(0, 3)
+          .map(
+            (row, index) =>
+              `<li><span class="cm-rank">0${index + 1}</span><span class="cm-name">${escapeHtml(row.name)}${
+                row.id === this.identity.id ? ' <em>YOU</em>' : ''
+              }</span><b>${formatNumber(row.best)}m</b></li>`
+          )
+          .join('')
+      : '<li class="club-mini-empty">NO RUNS YET — FINISH A DESCENT</li>';
+  }
+
+  private renderClubBoard(): void {
+    const empty = el('club-empty');
+    const member = el('club-member');
+    empty.hidden = Boolean(this.club);
+    member.hidden = !this.club;
+    if (!this.club) return;
+
+    el('club-board-name').textContent = this.club.name;
+    el('club-board-code').textContent = this.club.code;
+
+    const board = clubBoard(this.club.entries);
+    el('club-board-body').innerHTML = board.length
+      ? board
+          .map(
+            (row, index) =>
+              `<tr class="${row.id === this.identity.id ? 'you' : ''}">
+                <td class="col-i"><span class="row-index">${String(index + 1).padStart(2, '0')}</span></td>
+                <td class="row-answer">${escapeHtml(row.name)}${row.id === this.identity.id ? '<span class="answer-meta">YOU</span>' : ''}</td>
+                <td class="num"><span class="depth-cell">${formatNumber(row.best)} m</span></td>
+                <td class="num">${row.runs}</td>
+              </tr>`
+          )
+          .join('')
+      : '<tr><td colspan="4" class="club-empty-row">NO RUNS YET — EVERY DESCENT YOU FINISH IS LOGGED HERE</td></tr>';
+  }
+
+  private recordClub(result: RoundResult): void {
+    if (!this.club || result.totalDepth <= 0) return;
+    const mode = MODE_BY_ID.get(result.config.mode)?.name ?? result.config.mode;
+    this.club = recordClubRun(this.club, {
+      id: this.identity.id,
+      name: this.identity.name,
+      depth: result.totalDepth,
+      hits: result.hits,
+      mode,
+    });
+    writeClub(this.club);
+    this.renderClubHome();
+    this.renderClubBoard();
+    this.syncClub();
+  }
+
+  private syncClub(): void {
+    if (!this.club || !this.party.isLive()) return;
+    this.party.sendClub(this.club.code, this.club.entries);
+  }
+
+  private receiveClub(code: string, entries: ClubEntry[]): void {
+    if (!this.club || this.club.code !== code || !entries.length) return;
+    const before = this.club.entries.length;
+    this.club = addEntries(this.club, entries);
+    if (this.club.entries.length === before) return;
+    writeClub(this.club);
+    this.renderClubHome();
+    this.renderClubBoard();
+    this.toast('CLUB BOARD SYNCED');
+  }
+
+  private async copyClubCode(): Promise<void> {
+    if (this.club) await this.copyText(this.club.code);
+  }
+
+  private async copyText(text: string): Promise<void> {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const area = document.createElement('textarea');
+        area.value = text;
+        area.style.position = 'fixed';
+        area.style.opacity = '0';
+        document.body.appendChild(area);
+        area.select();
+        document.execCommand('copy');
+        document.body.removeChild(area);
+      }
+      this.toast(`COPIED ${text}`);
+    } catch {
+      this.toast('COPY BLOCKED');
+    }
   }
 
   /* ---------------- misc ---------------- */

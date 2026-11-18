@@ -10,7 +10,7 @@
     />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self' data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://server.arcgisonline.com https://gibs.earthdata.nasa.gov; connect-src 'self' ws://127.0.0.1:* http://127.0.0.1:* ws://localhost:* http://localhost:*; font-src 'self' data:;"
+      content="default-src 'self' data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://server.arcgisonline.com https://gibs.earthdata.nasa.gov; connect-src 'self' ws://127.0.0.1:* http://127.0.0.1:* ws://localhost:* http://localhost:* wss://0.peerjs.com https://0.peerjs.com; font-src 'self' data:;"
     />
     <title>DEEP ATLAS — Geographic Rarity Engine</title>
     <link
@@ -112,6 +112,22 @@
                   Depth is inverse-log scaled: tiny towns, obscure rivers and quiet lakes pay far more than megacities.
                 </p>
               </div>
+
+              <div class="glass club-panel">
+                <div class="club-panel-head">
+                  <span class="panel-label">CLUB</span>
+                  <button class="btn btn-icon" id="btn-club-board" type="button">BOARD</button>
+                </div>
+                <div class="club-identity">
+                  <strong id="club-name">NO CLUB YET</strong>
+                  <span id="club-code-line">FOUND A CREW OR JOIN ONE WITH A CODE</span>
+                </div>
+                <ol class="club-mini" id="club-mini"></ol>
+                <div class="club-actions">
+                  <button class="btn btn-primary" id="btn-party-host" type="button">HOST PARTY</button>
+                  <button class="btn btn-quiet" id="btn-party-join" type="button">JOIN</button>
+                </div>
+              </div>
             </aside>
           </div>
 
@@ -150,6 +166,14 @@
             <button class="btn btn-icon btn-danger" id="btn-quit" type="button">EXIT</button>
           </div>
         </header>
+
+        <div class="party-strip glass" id="party-strip" hidden>
+          <div class="party-strip-head">
+            <span class="panel-label">PARTY</span>
+            <span class="party-code-chip" id="party-code-chip">#000000</span>
+          </div>
+          <ol class="party-strip-list" id="party-strip-list"></ol>
+        </div>
 
         <aside class="depth-rail" id="depth-rail" aria-hidden="true">
           <div class="rail-head"><span>CORE</span><b>6371 km</b></div>
@@ -237,6 +261,14 @@
               <button class="btn btn-primary" id="btn-share" type="button">COPY SHARE GRID</button>
               <button class="btn btn-quiet" id="btn-help-2" type="button">RARITY GUIDE</button>
             </div>
+          </div>
+
+          <div class="party-result" id="party-result" hidden>
+            <div class="party-result-head">
+              <span class="panel-label">PARTY STANDINGS</span>
+              <span class="party-result-note" id="party-result-note">LIVE BOARD</span>
+            </div>
+            <ol class="party-result-list" id="party-result-list"></ol>
           </div>
 
           <div class="table-wrap">
@@ -334,6 +366,123 @@
           <span>CONTROLS · <kbd>ENTER</kbd> SUBMIT · <kbd>ESC</kbd> PAUSE</span>
           <button class="btn btn-primary" id="btn-help-done" type="button">GOT IT</button>
         </footer>
+      </div>
+    </div>
+
+    <div id="modal-party" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="party-title">
+      <div class="modal-panel glass party-panel">
+        <header class="modal-head">
+          <div>
+            <span class="eyebrow">MULTIPLAYER / PRIVATE PARTY</span>
+            <h2 id="party-title">DIVE TOGETHER</h2>
+          </div>
+          <button class="btn btn-icon" id="btn-party-close" type="button" aria-label="Close">✕</button>
+        </header>
+        <div class="modal-body">
+          <div id="party-setup">
+            <label class="field">
+              <span>YOUR DIVER NAME</span>
+              <input id="party-name" type="text" maxlength="14" autocomplete="off" spellcheck="false" placeholder="DIVER" />
+            </label>
+            <div class="party-grid">
+              <div class="party-block">
+                <span class="eyebrow">HOST</span>
+                <h3>OPEN A PARTY</h3>
+                <p>Seven identical prompts for everyone. Share the six-digit code for a 1v1, or fill the room for a party.</p>
+                <button class="btn btn-primary" id="btn-party-create" type="button">OPEN PARTY</button>
+              </div>
+              <div class="party-block">
+                <span class="eyebrow">GUEST</span>
+                <h3>JOIN WITH A CODE</h3>
+                <label class="field">
+                  <span>SIX-DIGIT CODE</span>
+                  <input id="party-code" type="text" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="000000" />
+                </label>
+                <button class="btn btn-quiet" id="btn-party-enter" type="button">JOIN PARTY</button>
+              </div>
+            </div>
+            <p class="party-note">Private by code, browser to browser. No account, no server keeping your scores.</p>
+          </div>
+
+          <div id="party-lobby" hidden>
+            <div class="party-lobby-head">
+              <div>
+                <span class="panel-label">INVITE CODE</span>
+                <div class="party-code-big" id="party-code-big">------</div>
+              </div>
+              <button class="btn btn-icon" id="btn-party-copy" type="button">COPY</button>
+            </div>
+            <ol class="party-members" id="party-members"></ol>
+            <p class="party-status" id="party-status">READY</p>
+            <div class="party-lobby-actions">
+              <button class="btn btn-primary" id="btn-party-start" type="button" hidden>START PARTY</button>
+              <button class="btn btn-quiet" id="btn-party-leave" type="button">LEAVE PARTY</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="modal-club" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="club-title">
+      <div class="modal-panel glass club-board-panel">
+        <header class="modal-head">
+          <div>
+            <span class="eyebrow">CLUB / LEADERBOARD</span>
+            <h2 id="club-title">THE CREW</h2>
+          </div>
+          <button class="btn btn-icon" id="btn-club-close" type="button" aria-label="Close">✕</button>
+        </header>
+        <div class="modal-body">
+          <div id="club-empty">
+            <p class="club-intro">
+              A club keeps one board of every diver's deepest descent. Scores travel peer-to-peer, so the board grows
+              whenever clubmates party together.
+            </p>
+            <div class="club-create-row">
+              <label class="field">
+                <span>CLUB NAME</span>
+                <input id="club-name-input" type="text" maxlength="18" autocomplete="off" placeholder="CORE CREW" />
+              </label>
+              <button class="btn btn-primary" id="btn-club-create" type="button">CREATE CLUB</button>
+            </div>
+            <div class="club-create-row">
+              <label class="field">
+                <span>JOIN WITH CODE</span>
+                <input id="club-code-input" type="text" maxlength="6" autocomplete="off" placeholder="ABCD" />
+              </label>
+              <button class="btn btn-quiet" id="btn-club-join" type="button">JOIN CLUB</button>
+            </div>
+          </div>
+
+          <div id="club-member" hidden>
+            <div class="club-head">
+              <div>
+                <div class="club-board-name" id="club-board-name">—</div>
+                <div class="club-board-code">CODE <b id="club-board-code">—</b></div>
+              </div>
+              <div class="club-head-actions">
+                <button class="btn btn-icon" id="btn-club-copy" type="button">COPY CODE</button>
+                <button class="btn btn-icon btn-danger" id="btn-club-leave" type="button">LEAVE</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="sum-table club-table">
+                <thead>
+                  <tr>
+                    <th class="col-i">#</th>
+                    <th>DIVER</th>
+                    <th class="num">BEST DEPTH</th>
+                    <th class="num">RUNS</th>
+                  </tr>
+                </thead>
+                <tbody id="club-board-body"></tbody>
+              </table>
+            </div>
+            <p class="club-sync-note">
+              The board lives in each diver's browser and syncs with clubmates over the party connection.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
 

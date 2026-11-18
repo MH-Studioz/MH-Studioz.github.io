@@ -19,7 +19,7 @@ export interface Prompt {
   target?: Place;
 }
 
-export type ModeId = 'daily' | 'blitz' | 'hardcore' | 'endless' | 'pinpoint';
+export type ModeId = 'daily' | 'blitz' | 'hardcore' | 'endless' | 'pinpoint' | 'party';
 
 /* ------------------------------------------------------------------ */
 /* Deterministic randomness                                            */
