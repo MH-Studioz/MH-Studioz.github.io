@@ -65,6 +65,14 @@
                   <span class="panel-label">REGION</span>
                   <div class="region-chips" id="region-chips"></div>
                 </div>
+                <div class="difficulty-row">
+                  <span class="panel-label">DIFFICULTY</span>
+                  <div class="difficulty-chips" id="difficulty-chips" role="group" aria-label="Difficulty"></div>
+                </div>
+                <label class="study-toggle">
+                  <input type="checkbox" id="study-toggle" />
+                  <span>STUDY MAP<em>Free pan and zoom during a run</em></span>
+                </label>
                 <div class="run-meta" id="run-meta"></div>
                 <button class="btn btn-primary btn-start" id="btn-start" type="button">
                   <span>START THE DESCENT</span>
@@ -316,8 +324,8 @@
           <section>
             <h3>01 · THE LOOP</h3>
             <p>
-              Each round serves seven prompts with twenty seconds on the clock. Type any real place that fits the
-              prompt and press <kbd>ENTER</kbd>. Answers are typo-tolerant and alias-aware, so
+              Each round serves seven prompts on a 12, 20 or 30 second clock depending on difficulty. Type any real
+              place that fits the prompt and press <kbd>ENTER</kbd>. Answers are typo-tolerant and alias-aware, so
               <em>“Bombay”</em> and <em>“Mumbai”</em> both land. Wrong guesses shake and cost you time, never a turn.
             </p>
           </section>
@@ -344,7 +352,7 @@
             </p>
           </section>
           <section>
-            <h3>04 · THE FIVE MODES</h3>
+            <h3>04 · MODES &amp; DIFFICULTY</h3>
             <ul class="guide-modes">
               <li><b>DAILY 7</b><span>One deterministic set of seven prompts per date. Same planet, same puzzles.</span></li>
               <li><b>CONTINENT BLITZ</b><span>Five fast prompts locked to a region you pick.</span></li>
@@ -362,10 +370,19 @@
             </p>
           </section>
           <section>
-            <h3>06 · PARTY &amp; CLUBS</h3>
+            <h3>06 · STREAKS &amp; THE DAILY CLOCK</h3>
+            <p>
+              The daily streak counts consecutive <em>local</em> calendar days with a finished Daily 7. Finish one
+              today and one tomorrow and it reads 2; skip a day and it drops back to 1. Extra runs on the same day do
+              not inflate it. A new descent unlocks at local midnight, when the home panel countdown reaches zero —
+              the seed is drawn from the date, so everyone in the world gets the same seven prompts for that day.
+            </p>
+          </section>
+          <section>
+            <h3>07 · PARTY &amp; CLUBS</h3>
             <p>
               Host a private party and share the six-digit code: one friend makes it a 1v1, more make it a room.
-              Everyone dives the same seven seeded prompts at the same time, and the strip under the HUD carries the
+              Everyone dives the same seven seeded prompts on the host's difficulty, and the strip under the HUD carries the
               live scoreboard. A club keeps a leaderboard of every diver's deepest descent; boards swap
               browser-to-browser whenever clubmates party together, so there is no account and no server holding
               your scores.

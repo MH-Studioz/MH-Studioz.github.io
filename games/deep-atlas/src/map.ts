@@ -152,6 +152,27 @@ export class AtlasMap {
     }
   }
 
+  /**
+   * A run locks the map: panning it to read border and city labels is scouting.
+   * Study mode leaves it live so players can learn the geography instead.
+   */
+  setInteractive(enabled: boolean): void {
+    const handlers = [
+      this.map.dragging,
+      this.map.scrollWheelZoom,
+      this.map.doubleClickZoom,
+      this.map.touchZoom,
+      this.map.boxZoom,
+      this.map.keyboard,
+    ];
+    for (const handler of handlers) {
+      if (!handler) continue;
+      if (enabled) handler.enable();
+      else handler.disable();
+    }
+    document.body.classList.toggle('map-locked', !enabled);
+  }
+
   flyRegion(region: RegionId): void {
     const view = REGION_VIEW[region] ?? REGION_VIEW.world;
     this.map.flyTo(view.center, view.zoom, { duration: 1.1 });

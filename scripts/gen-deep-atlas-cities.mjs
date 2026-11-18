@@ -16,10 +16,12 @@ const allCities = require('all-the-cities');
 const wc = require('world-countries');
 
 const DATA = new URL('../games/deep-atlas/data/', import.meta.url);
-const curated = JSON.parse(readFileSync(new URL('cities.json', DATA), 'utf8'));
+// Generated rows carry a country code; only the hand-written rows are the base,
+// so re-running this script never stacks duplicates on top of itself.
+const curated = JSON.parse(readFileSync(new URL('cities.json', DATA), 'utf8')).filter((c) => !c.code);
 
-const PER_COUNTRY = 14;
-const MIN_POP = 2_000;
+const PER_COUNTRY = 20;
+const MIN_POP = 1_000;
 const MAX_POP = 400_000;
 
 const norm = (s) =>

@@ -65,7 +65,7 @@ export function clearClub(): void {
   }
 }
 
-export function makeClubCode(): string {
+function makeClubCode(): string {
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   const values = new Uint32Array(4);
   crypto.getRandomValues(values);

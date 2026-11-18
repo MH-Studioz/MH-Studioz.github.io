@@ -678,6 +678,74 @@ kbd {
   border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 
+.difficulty-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.difficulty-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.difficulty-chip {
+  padding: 7px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
+}
+
+.difficulty-chip:hover {
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+.difficulty-chip[aria-pressed='true'] {
+  border-color: rgba(88, 200, 255, 0.5);
+  background: rgba(55, 140, 255, 0.18);
+  color: #e6f6ff;
+}
+
+.study-toggle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0 0 14px;
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.study-toggle input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: #58c8ff;
+  flex: 0 0 auto;
+}
+
+.study-toggle em {
+  display: block;
+  margin-top: 2px;
+  font-style: normal;
+  font-size: 7.5px;
+  letter-spacing: 0.1em;
+  color: var(--muted-dim);
+}
+
 .mode-desc {
   margin: 0 0 14px;
   color: var(--muted);
@@ -992,14 +1060,22 @@ kbd {
 .timer {
   position: relative;
   margin-left: auto;
-  width: 46px;
-  height: 46px;
+  width: 58px;
+  height: 58px;
   flex: 0 0 auto;
 }
 
+.timer::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1px solid rgba(88, 200, 255, 0.16);
+}
+
 .timer svg {
-  width: 46px;
-  height: 46px;
+  width: 58px;
+  height: 58px;
   transform: rotate(-90deg);
 }
 
@@ -1027,13 +1103,31 @@ kbd {
   display: grid;
   place-items: center;
   font-family: var(--mono);
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 19px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
 }
 
 .timer.warning .timer-ring {
   stroke: var(--danger);
   filter: drop-shadow(0 0 6px rgba(255, 84, 104, 0.7));
+  animation: timer-pulse 1s ease-in-out infinite;
+}
+
+@keyframes timer-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+/* During a run the map is scenery; study mode keeps it explorable. */
+body.map-locked #map {
+  cursor: default;
+}
+
+body.map-locked .leaflet-control-zoom {
+  display: none;
 }
 
 .timer.warning span {
@@ -2955,8 +3049,12 @@ kbd {
 
   .timer,
   .timer svg {
-    width: 34px;
-    height: 34px;
+    width: 42px;
+    height: 42px;
+  }
+
+  .timer span {
+    font-size: 15px;
   }
 
   .party-strip {

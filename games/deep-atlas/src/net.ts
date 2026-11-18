@@ -25,6 +25,8 @@ export interface PartyLobby {
 export interface PartyRound {
   seed: number;
   region: RegionId;
+  /** The host's difficulty, so every browser runs the same clock. */
+  seconds: number;
 }
 
 export type PartyStatus = 'idle' | 'connecting' | 'live' | 'error' | 'closed';
@@ -168,10 +170,10 @@ export class PartyClient {
   }
 
   /** Host only: freeze the lobby into a round and tell everyone the seed. */
-  startRound(): PartyRound | null {
+  startRound(seconds: number): PartyRound | null {
     if (this.role !== 'host' || !this.lobby) return null;
     const seed = (crypto.getRandomValues(new Uint32Array(1))[0] >>> 0) || 1;
-    const round: PartyRound = { seed, region: 'world' };
+    const round: PartyRound = { seed, region: 'world', seconds };
     for (const player of this.lobby.players) {
       player.depth = 0;
       player.hits = 0;
@@ -426,7 +428,7 @@ export class PartyClient {
 }
 
 /** Union of two club ledgers, keyed by diver + moment + depth. */
-export function mergeLedgers(base: ClubEntry[], incoming: ClubEntry[]): ClubEntry[] {
+function mergeLedgers(base: ClubEntry[], incoming: ClubEntry[]): ClubEntry[] {
   const seen = new Set(base.map(entryKey));
   const merged = [...base];
   for (const entry of incoming) {

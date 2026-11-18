@@ -36,6 +36,8 @@ export interface RoundConfig {
   region: RegionId;
   seed: number;
   number: number;
+  /** Seconds per prompt. Set by the selected difficulty (and by the host in a party). */
+  seconds: number;
 }
 
 export interface RoundResult {
@@ -55,12 +57,12 @@ export interface EngineHooks {
   onEnd(result: RoundResult): void;
 }
 
-const PROMPT_SECONDS = 20;
+const DEFAULT_SECONDS = 20;
 const REVEAL_MS = 2600;
 const MISS_REVEAL_MS = 3000;
 const ENDLESS_BONUS_MS = 5000;
 
-export function promptCountFor(mode: ModeId): number | null {
+function promptCountFor(mode: ModeId): number | null {
   if (mode === 'blitz') return 5;
   if (mode === 'pinpoint') return 5;
   if (mode === 'endless') return null;
@@ -83,11 +85,11 @@ export class Game {
   private revealing = false;
   private pendingFinish = false;
 
-  private timeLeftMs = PROMPT_SECONDS * 1000;
-  private timeTotalMs = PROMPT_SECONDS * 1000;
-  private bankMs = PROMPT_SECONDS * 1000;
+  private timeLeftMs = DEFAULT_SECONDS * 1000;
+  private timeTotalMs = DEFAULT_SECONDS * 1000;
+  private bankMs = DEFAULT_SECONDS * 1000;
   private lastNow = 0;
-  private lastSecond = PROMPT_SECONDS;
+  private lastSecond = DEFAULT_SECONDS;
 
   private interval: number | null = null;
   private autoTimer: number | null = null;
@@ -104,7 +106,11 @@ export class Game {
     this.totalDepth = 0;
     this.hits = 0;
     this.used.clear();
-    this.bankMs = PROMPT_SECONDS * 1000;
+    const seconds = Math.max(5, Math.min(60, Math.round(config.seconds || DEFAULT_SECONDS)));
+    this.bankMs = seconds * 1000;
+    this.timeTotalMs = seconds * 1000;
+    this.timeLeftMs = seconds * 1000;
+    this.lastSecond = seconds;
     this.pendingFinish = false;
     this.revealing = false;
     this.paused = false;
@@ -133,7 +139,8 @@ export class Game {
     this.revealing = false;
     this.paused = false;
 
-    this.timeTotalMs = this.config?.mode === 'endless' ? this.bankMs : PROMPT_SECONDS * 1000;
+    const seconds = this.config?.seconds ?? DEFAULT_SECONDS;
+    this.timeTotalMs = this.config?.mode === 'endless' ? this.bankMs : seconds * 1000;
     this.timeLeftMs = this.timeTotalMs;
     this.lastNow = performance.now();
     this.lastSecond = Math.ceil(this.timeLeftMs / 1000);
@@ -370,10 +377,6 @@ export class Game {
 
   getTotalDepth(): number {
     return this.totalDepth;
-  }
-
-  getEntryCount(): number {
-    return this.entries.length;
   }
 
   getHits(): number {

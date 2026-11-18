@@ -610,8 +610,8 @@ export function buildPinpointPrompts(count: number, seed: number, region: Region
 }
 
 export function dailyNumber(date: Date): number {
-  // 23 November 2026 is the First Descent: that date is #1.
-  const start = Date.UTC(2026, 10, 23);
+  // 1 January 2026 is daily #1, so the number advances every local day.
+  const start = Date.UTC(2026, 0, 1);
   const today = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
   return Math.max(1, Math.floor((today - start) / 86_400_000) + 1);
 }

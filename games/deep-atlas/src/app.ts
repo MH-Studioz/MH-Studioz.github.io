@@ -56,7 +56,7 @@ const MODES: ModeDef[] = [
     tag: 'DAILY 7',
     card: 'Shared daily seed',
     blurb:
-      'The world’s shared descent. Seven prompts drawn deterministically from the date — identical for every player until midnight. Day one is 23 November 2026. Your streak, best depth and history stay in this browser.',
+      'The world’s shared descent. Seven prompts drawn deterministically from the date — identical for every player until local midnight, when the next one unlocks. Your streak, best depth and history stay in this browser.',
     meta: ['7 PROMPTS', '20 SECONDS', 'SHARED SEED'],
   },
   {
@@ -108,6 +108,14 @@ const MODES: ModeDef[] = [
 
 const MODE_BY_ID = new Map(MODES.map((m) => [m.id, m]));
 
+type DifficultyId = 'easy' | 'normal' | 'expert';
+
+const DIFFICULTIES: { id: DifficultyId; label: string; seconds: number }[] = [
+  { id: 'easy', label: 'EASY', seconds: 30 },
+  { id: 'normal', label: 'NORMAL', seconds: 20 },
+  { id: 'expert', label: 'EXPERT', seconds: 12 },
+];
+
 const REGION_LABEL: Record<RegionId, string> = {
   world: 'World',
   europe: 'Europe',
@@ -139,6 +147,8 @@ const KEY_DAILY = 'deepatlas.daily.v1';
 const KEY_RECORDS = 'deepatlas.records.v1';
 const KEY_MUTED = 'deepatlas.muted.v1';
 const KEY_IDENTITY = 'deepatlas.identity.v1';
+const KEY_DIFFICULTY = 'deepatlas.difficulty.v1';
+const KEY_STUDY = 'deepatlas.study.v1';
 
 function readJson<T>(key: string, fallback: T): T {
   try {
@@ -227,6 +237,9 @@ export class App {
   private partyPlayers: PartyPlayer[] = [];
   /** Per-session id, so two tabs on one browser join as two divers. */
   private partyId = '';
+  private difficulty: DifficultyId = 'normal';
+  private study = false;
+  private todayKey = dateKey();
 
   constructor() {
     this.sound = new SoundEngine(this.readMuted());
@@ -243,6 +256,9 @@ export class App {
 
     this.daily = readJson<DailySave>(KEY_DAILY, { date: '', streak: 0, best: 0, history: [] });
     this.records = readJson<Record<string, number>>(KEY_RECORDS, {});
+    const savedDifficulty = readJson<{ value: DifficultyId }>(KEY_DIFFICULTY, { value: 'normal' }).value;
+    this.difficulty = DIFFICULTIES.some((d) => d.id === savedDifficulty) ? savedDifficulty : 'normal';
+    this.study = readJson<{ value: boolean }>(KEY_STUDY, { value: false }).value === true;
 
     const identity = readJson<{ id: string; name: string }>(KEY_IDENTITY, { id: '', name: '' });
     if (!identity.id) identity.id = `d-${Math.random().toString(36).slice(2, 10)}`;
@@ -259,11 +275,15 @@ export class App {
 
     this.buildModeTabs();
     this.buildRegions();
+    this.buildDifficulty();
     this.wire();
     this.renderClubHome();
     this.refreshHome();
     this.syncSound();
     this.updateRail(0);
+
+    // Keep the daily number, streak and countdown honest across midnight.
+    window.setInterval(() => this.tickHomeClock(), 1000);
 
     // Leaflet needs a tick after the page settles.
     window.setTimeout(() => this.map.invalidate(), 120);
@@ -321,13 +341,46 @@ export class App {
     });
   }
 
+  private buildDifficulty(): void {
+    const wrap = el('difficulty-chips');
+    wrap.innerHTML = '';
+    DIFFICULTIES.forEach((difficulty) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'difficulty-chip';
+      button.textContent = `${difficulty.label} · ${difficulty.seconds}S`;
+      button.setAttribute('aria-pressed', String(difficulty.id === this.difficulty));
+      button.addEventListener('click', () => {
+        this.difficulty = difficulty.id;
+        writeJson(KEY_DIFFICULTY, { value: difficulty.id });
+        for (const node of wrap.querySelectorAll<HTMLElement>('.difficulty-chip')) {
+          node.setAttribute('aria-pressed', String(node.textContent?.startsWith(difficulty.label)));
+        }
+        this.sound.click();
+        this.updateModeInfo();
+      });
+      wrap.appendChild(button);
+    });
+    el<HTMLInputElement>('study-toggle').checked = this.study;
+  }
+
+  private difficultySeconds(): number {
+    return DIFFICULTIES.find((difficulty) => difficulty.id === this.difficulty)?.seconds ?? 20;
+  }
+
+  private difficultyLabel(): string {
+    return DIFFICULTIES.find((difficulty) => difficulty.id === this.difficulty)?.label ?? 'NORMAL';
+  }
+
   private updateModeInfo(): void {
     const mode = MODE_BY_ID.get(this.mode) ?? MODES[0];
     el('mode-desc').textContent = mode.blurb;
     const regionRow = el('region-row');
     regionRow.hidden = this.mode !== 'blitz';
 
-    const bits = [...mode.meta];
+    const bits = mode.meta.map((bit) =>
+      bit === '20 SECONDS' ? `${this.difficultySeconds()} SECONDS · ${this.difficultyLabel()}` : bit
+    );
     if (this.mode === 'blitz') bits.splice(2, 1, `${REGION_LABEL[this.region].toUpperCase()} LOCK`);
     if (this.mode === 'daily') bits.push(`#${dailyNumber(new Date())} · ${dateKey()}`);
     el('run-meta').innerHTML = bits.map((bit) => `<span><b>•</b> ${bit}</span>`).join('');
@@ -383,7 +436,7 @@ export class App {
     el('btn-party-create').addEventListener('click', () => void this.hostParty());
     el('btn-party-enter').addEventListener('click', () => void this.joinParty());
     el('btn-party-start').addEventListener('click', () => {
-      const round = this.party.startRound();
+      const round = this.party.startRound(this.difficultySeconds());
       if (round) this.beginPartyRound(round);
       else this.setPartyStatus('OPEN A PARTY FIRST');
     });
@@ -405,6 +458,13 @@ export class App {
     el('btn-club-copy').addEventListener('click', () => void this.copyClubCode());
     el('btn-club-leave').addEventListener('click', () => this.leaveClub());
     el<HTMLInputElement>('party-name').value = this.identity.name;
+
+    el<HTMLInputElement>('study-toggle').addEventListener('change', (event) => {
+      this.study = (event.target as HTMLInputElement).checked;
+      writeJson(KEY_STUDY, { value: this.study });
+      this.toast(this.study ? 'STUDY MAP ON — FREE PAN DURING RUNS' : 'STUDY MAP OFF — MAP LOCKED IN RUNS');
+      if (!el('hud').hidden) this.map.setInteractive(this.study);
+    });
 
     el('btn-sound').addEventListener('click', () => this.toggleSound());
     el('btn-sound-hud').addEventListener('click', () => this.toggleSound());
@@ -488,7 +548,12 @@ export class App {
 
   /* ---------------- round flow ---------------- */
 
-  private start(mode: ModeId = this.mode, region: RegionId = this.region, seedOverride?: number): void {
+  private start(
+    mode: ModeId = this.mode,
+    region: RegionId = this.region,
+    seedOverride?: number,
+    secondsOverride?: number
+  ): void {
     this.sound.unlock();
     this.activeMode = mode;
     if (mode !== 'party') this.mode = mode;
@@ -505,6 +570,8 @@ export class App {
 
     this.map.clearSession();
     this.map.setHardcore(mode === 'hardcore');
+    // The map is scenery during a run; scouting it would hand out answers.
+    this.map.setInteractive(this.study);
     this.map.flyRegion(region);
     this.updateRail(0);
     el('reveal').hidden = true;
@@ -521,10 +588,11 @@ export class App {
       region,
       seed,
       number: mode === 'daily' ? dailyNumber(new Date()) : 0,
+      seconds: secondsOverride ?? this.difficultySeconds(),
     };
 
     const modeDef = MODE_BY_ID.get(mode) ?? MODES[0];
-    el('hud-mode').textContent = modeDef.tag;
+    el('hud-mode').textContent = `${modeDef.tag} · ${this.difficultyLabel()}`;
     el('time-bank').hidden = mode !== 'endless';
 
     this.game.start(config);
@@ -781,6 +849,7 @@ export class App {
     else el('party-result').hidden = true;
 
     this.map.setHardcore(result.config.mode === 'hardcore');
+    this.map.setInteractive(true);
     window.setTimeout(() => this.map.showSummary(result.entries, pinpointTarget), 220);
   }
 
@@ -850,14 +919,42 @@ export class App {
 
     document.body.classList.remove('in-round', 'summary-open');
     this.map.setHardcore(false);
+    this.map.setInteractive(true);
     this.map.reset();
     this.refreshHome();
     this.updateModeInfo();
   }
 
+  private tickHomeClock(): void {
+    if (el('screen-home').hidden) return;
+    this.updateDailyNote();
+    const key = dateKey();
+    if (key === this.todayKey) return;
+    this.todayKey = key;
+    this.refreshHome();
+    this.updateModeInfo();
+    this.toast('NEW DESCENT UNLOCKED');
+  }
+
+  private updateDailyNote(): void {
+    const note = document.querySelector<HTMLElement>('.daily-note');
+    if (!note) return;
+    const now = new Date();
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
+    const left = Math.max(0, midnight - now.getTime());
+    const hours = Math.floor(left / 3_600_000);
+    const minutes = Math.floor((left % 3_600_000) / 60_000);
+    const seconds = Math.floor((left % 60_000) / 1000);
+    note.textContent = `NEXT DESCENT IN ${[hours, minutes, seconds]
+      .map((value) => String(value).padStart(2, '0'))
+      .join(':')}`;
+  }
+
   private refreshHome(): void {
     const number = dailyNumber(new Date());
+    this.todayKey = dateKey();
     el('daily-number').textContent = `#${number}`;
+    this.updateDailyNote();
     el('stat-streak').textContent = String(this.daily.streak);
     el('stat-best').textContent = this.daily.best ? formatDepth(this.daily.best) : '—';
     el('stat-runs').textContent = String(this.daily.history.length);
@@ -986,7 +1083,7 @@ export class App {
     el('party-strip').hidden = false;
     el('party-code-chip').textContent = `#${this.party.lobby?.code ?? ''}`;
     this.handlePartyScores(this.party.lobby?.players ?? []);
-    this.start('party', 'world', round.seed);
+    this.start('party', 'world', round.seed, round.seconds);
   }
 
   private handlePartyScores(players: PartyPlayer[]): void {

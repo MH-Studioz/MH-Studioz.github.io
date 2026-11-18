@@ -16,15 +16,6 @@ export type Continent =
 
 export type RegionId = 'world' | 'europe' | 'asia' | 'americas' | 'africa' | 'oceania';
 
-export const REGIONS: { id: RegionId; label: string }[] = [
-  { id: 'world', label: 'World' },
-  { id: 'europe', label: 'Europe' },
-  { id: 'asia', label: 'Asia' },
-  { id: 'americas', label: 'Americas' },
-  { id: 'africa', label: 'Africa' },
-  { id: 'oceania', label: 'Oceania' },
-];
-
 export interface Place {
   id: string;
   name: string;
@@ -142,6 +133,24 @@ function slug(input: string): string {
   return normalize(input).replace(/\s+/g, '-');
 }
 
+/** Common alternate spellings, so “St Lucia” and “Saint Lucia” both resolve. */
+function nameAliases(name: string, extra: string[] = []): string[] {
+  const out = new Set(extra);
+  const variants: string[] = [];
+  if (/^Saint\s/i.test(name)) {
+    variants.push(name.replace(/^Saint\s/i, 'St. '), name.replace(/^Saint\s/i, 'St '));
+  }
+  if (/^St\.?\s/i.test(name)) variants.push(name.replace(/^St\.?\s/i, 'Saint '));
+  if (/^Mount\s/i.test(name)) variants.push(name.replace(/^Mount\s/i, 'Mt. '), name.replace(/^Mount\s/i, 'Mt '));
+  if (/^Mt\.?\s/i.test(name)) variants.push(name.replace(/^Mt\.?\s/i, 'Mount '));
+  if (/\sCity$/i.test(name)) variants.push(name.replace(/\sCity$/i, ''));
+  for (const variant of variants) {
+    const value = variant.trim();
+    if (value && normalize(value) !== normalize(name)) out.add(value);
+  }
+  return [...out];
+}
+
 const countryByName = new Map<string, RawCountry>();
 for (const c of countries) countryByName.set(normalize(c.name), c);
 
@@ -176,7 +185,7 @@ for (const c of cities) {
   places.push({
     id: `city-${slug(c.name)}${c.code ? `-${c.code.toLowerCase()}` : ''}`,
     name: c.name,
-    aliases: c.aliases ?? [],
+    aliases: nameAliases(c.name, c.aliases ?? []),
     category: 'city',
     continent: c.continent,
     lat: c.lat,
@@ -215,7 +224,7 @@ for (const p of peaks) {
   places.push({
     id: `peak-${slug(p.name)}`,
     name: p.name,
-    aliases: p.aliases ?? [],
+    aliases: nameAliases(p.name, p.aliases ?? []),
     category: 'peak',
     continent: p.continent,
     lat: p.lat,
