@@ -26,4 +26,4 @@ Included as `public/assets/audio/engine_loop.wav`.
 
 ## Trademarks
 
-Apex GP 2026 is an unofficial, original project and is not associated with or endorsed by Formula One Licensing B.V., the FIA, any team, driver, championship or circuit operator. All trademarks remain the property of their respective owners.
+GP 2026 is an unofficial, original project and is not associated with or endorsed by Formula One Licensing B.V., the FIA, any team, driver, championship or circuit operator. All trademarks remain the property of their respective owners.

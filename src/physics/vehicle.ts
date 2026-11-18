@@ -249,9 +249,13 @@ export class RaceCar {
 
   placeOnGrid(slot: number): void {
     const row = Math.floor(slot / 2);
-    const side = slot % 2 === 0 ? -2.3 : 2.3;
-    // Two cars per row, 7 m between rows, all behind the start line.
-    const u = wrapU(0.992 - row * 0.0013);
+    const side = slot % 2 === 0 ? -2.55 : 2.55;
+    // Two cars per row, 8.4 m apart, with the right-hand car staggered
+    // slightly forward like a real grid box. The spacing scales with short
+    // circuits so karts and junior cars still fit behind the line.
+    const rowGap = Math.min(0.006, 8.4 / Math.max(1, this.track.length));
+    const stagger = slot % 2 === 1 ? rowGap * 0.16 : 0;
+    const u = wrapU(0.992 - row * rowGap - stagger);
     this.placeAt(u, side, 0);
     this.throttle = 0;
     this.brake = 0;
@@ -582,15 +586,20 @@ export class RaceCar {
     this.offTrack = !this.inPitLane && Math.abs(lateral) > this.track.width / 2 + 0.35;
     this.onKerb = !this.offTrack && Math.abs(lateral) > this.track.width / 2 - 0.55 && sample.kerb;
 
-    const barrier = this.track.width / 2 + TRACK_BARRIER_MARGIN;
-    if (!this.inPitLane && lateral > barrier) {
-      this.hitBarrier(lateral, sample, speedAbs);
-    } else if (!this.inPitLane && lateral < -barrier) {
-      this.hitBarrier(lateral, sample, speedAbs);
+    // Collide against the bodywork edge, not the car's centreline. Using the
+    // projected half-width also keeps a spun car from burying its nose in the
+    // wall when it approaches the barrier sideways.
+    const relativeHeading = this.heading - Math.atan2(sample.tangent.x, sample.tangent.z);
+    const bodyHalfWidth =
+      Math.abs(Math.cos(relativeHeading)) * this.collisionRadius +
+      Math.abs(Math.sin(relativeHeading)) * this.collisionHalfLength;
+    const barrierLimit = this.track.width / 2 + TRACK_BARRIER_MARGIN - bodyHalfWidth - 0.02;
+    if (!this.inPitLane && Math.abs(lateral) > barrierLimit) {
+      this.hitBarrier(lateral, sample, speedAbs, barrierLimit);
     }
 
     // Track limits: strict mode issues a 5 s penalty every third strike.
-    if (!this.inPitLane && Math.abs(lateral) > this.track.width / 2 + 1.35 && speedAbs > 3) {
+    if (this.sim.trackLimits !== 'off' && !this.inPitLane && Math.abs(lateral) > this.track.width / 2 + 1.35 && speedAbs > 3) {
       this.offTimer += dt;
       if (this.offTimer > 0.65 && this.limitCooldown <= 0) {
         this.trackLimitStrikes++;
@@ -658,10 +667,8 @@ export class RaceCar {
     this.impactPulse = Math.max(0, this.impactPulse - dt * 2.2);
   }
 
-  private hitBarrier(lateral: number, sample: TrackSample, impactSpeed: number): void {
-    const barrier = this.track.width / 2 + TRACK_BARRIER_MARGIN;
+  private hitBarrier(lateral: number, sample: TrackSample, impactSpeed: number, limit: number): void {
     const side = Math.sign(lateral) || 1;
-    const limit = barrier - 0.7;
     this.pos.x = sample.pos.x + sample.right.x * side * limit;
     this.pos.z = sample.pos.z + sample.right.z * side * limit;
     this.pos.y = surfaceHeight(sample, side * limit);

@@ -2329,8 +2329,8 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .lights-rail i {
-  width: 15px;
-  height: 15px;
+  width: 17px;
+  height: 17px;
   border-radius: 50%;
   background: #2a0d0d;
   box-shadow: inset 0 0 4px #000;
@@ -2343,8 +2343,17 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .lights-rail i.go {
-  background: #19e07a;
-  box-shadow: 0 0 16px rgba(25, 224, 122, 0.9);
+  background: #180606;
+  box-shadow: inset 0 0 4px #000;
+  opacity: 0.45;
+}
+
+.start-lights.release {
+  border-color: rgba(25, 224, 122, 0.5);
+}
+
+.start-lights.release .lights-label {
+  color: #19e07a;
 }
 
 .lights-label {

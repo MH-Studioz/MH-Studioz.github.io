@@ -81,7 +81,7 @@ export function createSidewallTexture(compound: CompoundId, color: string): Canv
     ctx.save();
     ctx.rotate((i * Math.PI * 2) / 3);
     ctx.font = '700 34px "Segoe UI", system-ui, sans-serif';
-    ctx.fillText('APEX', 0, -168);
+    ctx.fillText('GP', 0, -168);
     ctx.font = '800 30px "Segoe UI", system-ui, sans-serif';
     ctx.fillStyle = color;
     ctx.fillText(compound.toUpperCase(), 0, -128);

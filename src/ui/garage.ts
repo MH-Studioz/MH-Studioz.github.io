@@ -82,10 +82,10 @@ export class GarageUI {
     this.container.innerHTML = '';
 
     // 01 — class.
-    const carClass = section('01', 'RACE CLASS', '5 FORMULAS');
+    const carClass = section('01', 'RACE CLASS', '6 FORMULAS');
     const classGrid = document.createElement('div');
     classGrid.className = 'aero-grid';
-    for (const value of ['hybrid', 'v10', 'junior', 'gt', 'kart'] as CarClass[]) {
+    for (const value of ['hybrid', 'v10', 'junior', 'gt', 'prototype', 'kart'] as CarClass[]) {
       const spec = CAR_CLASSES[value];
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -392,9 +392,11 @@ export class GarageUI {
       v10: 350,
       junior: 289,
       gt: 305,
+      prototype: 330,
       kart: 115,
     };
-    const aeroAuthority = carClass.category === 'open-wheel' ? 1 : carClass.category === 'gt' ? 0.32 : 0.04;
+    const aeroAuthority =
+      carClass.category === 'open-wheel' ? 1 : carClass.category === 'prototype' ? 0.52 : carClass.category === 'gt' ? 0.32 : 0.04;
     const topSpeed = Math.round(
       topSpeedBase[carClass.id] +
         pkgOffset * aeroAuthority -

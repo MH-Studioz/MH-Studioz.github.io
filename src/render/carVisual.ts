@@ -150,7 +150,9 @@ diffuseColor.rgb = livery;
 function createLiveryMaterial(config: CarConfig, uniforms: LiveryUniforms): THREE.MeshStandardMaterial {
   const finish = finishParams(config.livery.finish);
   const mat = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
+    // The shader overrides this per-fragment; the base colour keeps the car
+    // from flashing white if a driver/context rejects the custom livery shader.
+    color: new THREE.Color(config.livery.primary),
     roughness: finish.roughness,
     metalness: finish.metalness,
     envMapIntensity: config.livery.finish === 'gloss' ? 1.3 : 0.7,
@@ -258,6 +260,8 @@ export class CarVisual {
     const category = CAR_CLASSES[config.carClass].category;
     if (category === 'gt') {
       this.buildGT();
+    } else if (category === 'prototype') {
+      this.buildPrototype();
     } else if (category === 'kart') {
       this.buildKart();
     } else if (template) {
@@ -682,6 +686,127 @@ export class CarVisual {
     this.addHelmet(0, 0.74, -0.3);
   }
 
+  private buildPrototype(): void {
+    this.usingGlb = false;
+    this.modelScale = 1;
+    this.mergeAfterBuild = true;
+    const root = new THREE.Group();
+    this.modelRoot = root;
+    this.group.add(root);
+
+    const bodyMat = this.getMaterial('body');
+    const accentMat = this.getMaterial('accent');
+    const secondaryMat = this.getMaterial('secondary');
+    const carbonMat = this.getMaterial('carbon');
+    const glassMat = new THREE.MeshStandardMaterial({
+      color: '#0b141d',
+      roughness: 0.12,
+      metalness: 0.72,
+      transparent: true,
+      opacity: 0.9,
+    });
+    const headlightMat = new THREE.MeshStandardMaterial({
+      color: '#eff6ff',
+      emissive: '#bfe0ff',
+      emissiveIntensity: 1.8,
+      roughness: 0.3,
+    });
+    const tailMat = new THREE.MeshStandardMaterial({
+      color: '#ff1616',
+      emissive: '#ff0000',
+      emissiveIntensity: 2.2,
+      roughness: 0.3,
+    });
+
+    // Low, wide endurance-prototype body with a closed canopy.
+    const floor = new THREE.Mesh(new RoundedBoxGeometry(1.96, 0.12, 4.72, 3, 0.06), carbonMat);
+    floor.position.set(0, 0.2, -0.02);
+    root.add(floor);
+    const shell = new THREE.Mesh(taperedBoxGeometry(1.78, 1.92, 0.58, 0.42, 4.42), bodyMat);
+    shell.position.set(0, 0.53, 0);
+    root.add(shell);
+    const nose = new THREE.Mesh(new RoundedBoxGeometry(1.3, 0.23, 1.28, 3, 0.08), bodyMat);
+    nose.position.set(0, 0.72, 1.6);
+    root.add(nose);
+    const deck = new THREE.Mesh(taperedBoxGeometry(1.42, 1.18, 0.28, 0.34, 1.82), bodyMat);
+    deck.position.set(0, 0.84, -1.0);
+    root.add(deck);
+
+    for (const side of [-1, 1]) {
+      const frontFender = new THREE.Mesh(new RoundedBoxGeometry(0.44, 0.31, 1.3, 3, 0.1), bodyMat);
+      frontFender.position.set(side * 0.99, 0.59, 1.5);
+      root.add(frontFender);
+      const rearFender = new THREE.Mesh(new RoundedBoxGeometry(0.47, 0.34, 1.38, 3, 0.11), bodyMat);
+      rearFender.position.set(side * 1.0, 0.61, -1.5);
+      root.add(rearFender);
+      const sidepod = new THREE.Mesh(new RoundedBoxGeometry(0.3, 0.33, 1.62, 3, 0.08), secondaryMat);
+      sidepod.position.set(side * 0.94, 0.47, 0.02);
+      root.add(sidepod);
+      const intake = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.19, 0.52), carbonMat);
+      intake.position.set(side * 1.04, 0.53, 0.34);
+      root.add(intake);
+      const divePlane = new THREE.Mesh(new RoundedBoxGeometry(0.3, 0.035, 0.5, 2, 0.015), accentMat);
+      divePlane.position.set(side * 0.93, 0.3, 2.1);
+      root.add(divePlane);
+    }
+
+    const cabin = new THREE.Mesh(taperedBoxGeometry(1.28, 1.02, 0.66, 0.44, 1.5), bodyMat);
+    cabin.position.set(0, 1.17, -0.18);
+    root.add(cabin);
+    const roof = new THREE.Mesh(new RoundedBoxGeometry(1.03, 0.11, 1.03, 3, 0.045), bodyMat);
+    roof.position.set(0, 1.55, -0.28);
+    root.add(roof);
+    const windscreen = new THREE.Mesh(new THREE.BoxGeometry(1.04, 0.38, 0.045), glassMat);
+    windscreen.position.set(0, 1.37, 0.52);
+    windscreen.rotation.x = -0.55;
+    root.add(windscreen);
+    for (const side of [-1, 1]) {
+      const window = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.31, 0.86), glassMat);
+      window.position.set(side * 0.635, 1.3, -0.16);
+      root.add(window);
+    }
+    const scoop = new THREE.Mesh(new RoundedBoxGeometry(0.4, 0.2, 0.55, 3, 0.05), carbonMat);
+    scoop.position.set(0, 1.66, -0.55);
+    root.add(scoop);
+
+    const splitter = new THREE.Mesh(new RoundedBoxGeometry(2.0, 0.055, 0.58, 2, 0.025), carbonMat);
+    splitter.position.set(0, 0.23, 2.24);
+    root.add(splitter);
+    const grille = new THREE.Mesh(new THREE.BoxGeometry(1.08, 0.16, 0.045), carbonMat);
+    grille.position.set(0, 0.56, 2.2);
+    root.add(grille);
+    for (const side of [-1, 1]) {
+      const headlight = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.11, 0.045), headlightMat);
+      headlight.position.set(side * 0.56, 0.76, 2.21);
+      root.add(headlight);
+    }
+    const tail = new THREE.Mesh(new THREE.BoxGeometry(1.48, 0.09, 0.045), tailMat);
+    tail.position.set(0, 0.76, -2.22);
+    root.add(tail);
+
+    const rearWing = new THREE.Group();
+    rearWing.position.set(0, 1.3, -2.08);
+    root.add(rearWing);
+    const rearPlane = new THREE.Mesh(new THREE.BoxGeometry(1.96, 0.055, 0.46), accentMat);
+    rearWing.add(rearPlane);
+    for (const side of [-1, 1]) {
+      const plate = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.55, 0.62), secondaryMat);
+      plate.position.set(side * 0.98, -0.02, 0.03);
+      rearWing.add(plate);
+      const support = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.55, 0.1), carbonMat);
+      support.position.set(side * 0.48, 0.95, -2.03);
+      root.add(support);
+    }
+    const diffuser = new THREE.Mesh(new THREE.BoxGeometry(1.52, 0.24, 0.54), carbonMat);
+    diffuser.position.set(0, 0.27, -2.2);
+    root.add(diffuser);
+
+    this.addWheelRig(root, true, -0.9, 1.52, 0.33, 0.35);
+    this.addWheelRig(root, true, 0.9, 1.52, 0.33, 0.35);
+    this.addWheelRig(root, false, -0.94, -1.5, 0.34, 0.36);
+    this.addWheelRig(root, false, 0.94, -1.5, 0.34, 0.36);
+  }
+
   private buildProcedural(): void {
     this.usingGlb = false;
     this.mergeAfterBuild = true;
@@ -1010,7 +1135,7 @@ export class CarVisual {
     const noseTex = createNumberTexture(this.config.livery.number, this.config.livery.accent, null);
     const tagTex = createNumberTexture(this.config.livery.number, this.config.livery.accent, this.config.livery.tag);
 
-    if (category === 'gt') {
+    if (category === 'gt' || category === 'prototype') {
       const roof = this.createDecal(tagTex, 0.78, 0.78);
       roof.position.set(0, bounds.max.y + 0.018, -0.36);
       roof.rotation.x = -Math.PI / 2;

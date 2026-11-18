@@ -6,6 +6,7 @@ import { COMPOUNDS, reMount, type CompoundId } from '../physics/tyres';
 import { RaceCar } from '../physics/vehicle';
 import type { DriverInput } from '../physics/vehicle';
 import { clamp, type DifficultySettings } from '../physics/settings';
+import type { PartyCarFrame } from '../net/party';
 import { RaceRenderer } from '../render/raceRenderer';
 import type { TrackData } from '../tracks/types';
 import { progressDelta } from '../tracks/trackMath';
@@ -15,7 +16,7 @@ import { Minimap } from '../ui/minimap';
 const FIXED_STEP = 1 / 120;
 const MAX_FRAME = 0.08;
 
-export type RaceMode = 'quick' | 'timetrial' | 'weekend';
+export type RaceMode = 'quick' | 'timetrial' | 'weekend' | 'party';
 
 export interface RaceSessionOptions {
   canvas: HTMLCanvasElement;
@@ -24,8 +25,13 @@ export interface RaceSessionOptions {
   difficulty: DifficultySettings;
   mode: RaceMode;
   laps: number;
+  aiCount?: number;
+  weather?: 'dry' | 'wet';
+  flags?: boolean;
   template: import('three').Group | null;
   onExit: () => void;
+  /** Emits the local car pose for party races. */
+  onCarFrame?: (frame: PartyCarFrame) => void;
 }
 
 interface Racer {
@@ -80,6 +86,7 @@ export class RaceSession {
   private clock = 0;
   private countdown = 0;
   private greenTimer = -1;
+  private lightsOutDelay = 1.35;
   private transitionTimer = 0;
   private accumulator = 0;
   private lastTime = 0;
@@ -96,11 +103,17 @@ export class RaceSession {
   private deltaIsBest = false;
   private audioMuted = false;
   private resultsBuilt = false;
+  private netTimer = 0;
+  private remoteFrames = new Map<string, PartyCarFrame>();
 
   constructor(opts: RaceSessionOptions) {
     this.opts = opts;
-    const aiCount = opts.mode === 'timetrial' ? 0 : 9;
+    if (opts.weather === 'wet') opts.playerConfig.livery.compound = 'wet';
+    const aiCount = opts.mode === 'timetrial' ? 0 : clamp(Math.round(opts.aiCount ?? 9), 0, 9);
     const aiConfigs = TEAM_PRESETS.slice(0, aiCount).map((team) => teamConfig(team, opts.playerConfig.carClass));
+    if (opts.weather === 'wet') {
+      for (const config of aiConfigs) config.livery.compound = 'wet';
+    }
     this.renderer = new RaceRenderer(opts.canvas, opts.track, opts.playerConfig, aiConfigs, opts.template);
 
     const hudCallbacks = {
@@ -134,6 +147,21 @@ export class RaceSession {
 
   private get playerRacer(): Racer {
     return this.racers[this.playerIndex];
+  }
+
+  /** Add a party member's lightweight car visual. */
+  addRemoteCar(id: string, config: CarConfig): void {
+    this.renderer.addRemoteCar(id, config);
+  }
+
+  /** Store the latest network pose; it is drawn on the next animation frame. */
+  updateRemoteCar(id: string, frame: PartyCarFrame): void {
+    this.remoteFrames.set(id, frame);
+  }
+
+  removeRemoteCar(id: string): void {
+    this.remoteFrames.delete(id);
+    this.renderer.removeRemoteCar(id);
   }
 
   private buildRacers(): void {
@@ -170,8 +198,10 @@ export class RaceSession {
     if (opts.mode !== 'timetrial') {
       const aiAssists = { brakingAssist: 'off' as const, abs: true, tractionControl: 'full' as const, racingLine: 'off' as const, gearbox: 'auto' as const };
       const aiSim = { ...opts.difficulty.sim, damage: 'off' as const };
-      TEAM_PRESETS.slice(0, 9).forEach((team, i) => {
+      const aiCount = clamp(Math.round(opts.aiCount ?? 9), 0, 9);
+      TEAM_PRESETS.slice(0, aiCount).forEach((team, i) => {
         const config = teamConfig(team, opts.playerConfig.carClass);
+        if (opts.weather === 'wet') config.livery.compound = 'wet';
         const pace = clamp(opts.difficulty.aiPace + [1.5, -1, 2.5, 0, -2, 3, -1.5, 1, -0.5][i], 50, 110);
         const car = new RaceCar(opts.track, config, aiAssists, aiSim);
         const ai = new AIDriver(car, team.tag, team.name, pace);
@@ -271,6 +301,10 @@ export class RaceSession {
 
   private prepareMode(): void {
     const mode = this.opts.mode;
+    // Real starts hold the five red lamps for an unpredictable beat before
+    // they go out. Deriving the hold from the circuit keeps it deterministic
+    // for a given track while still avoiding a fixed countdown feel.
+    this.lightsOutDelay = 1.05 + ((this.opts.track.length % 997) / 997) * 0.95;
     this.hud.setStartLights(0, 'GET READY');
     this.hud.hideStartLights();
     this.hud.setPitCompound(this.opts.playerConfig.livery.compound);
@@ -315,6 +349,8 @@ export class RaceSession {
       this.phase = 'countdown';
       this.countdown = 0;
       this.clock = 0;
+      this.hud.setStartLights(0, 'FORMATION COMPLETE');
+      this.renderer.setStartLights(0, false);
     }
   }
 
@@ -376,6 +412,8 @@ export class RaceSession {
     this.clock = 0;
     this.greenTimer = -1;
     this.resultsBuilt = false;
+    this.hud.setStartLights(0, 'GRID SET');
+    this.renderer.setStartLights(0, false);
     this.hud.showMessage('QUALIFYING COMPLETE · GRID SET', 'flag-green', 2400);
   }
 
@@ -445,7 +483,25 @@ export class RaceSession {
     if (this.opts.mode === 'timetrial') {
       this.renderer.updateGhost(dt);
     }
+    for (const [id, frame] of this.remoteFrames) this.renderer.updateRemoteCar(id, frame, dt);
     this.renderer.update(dt, this.racers.map((r) => r.car), this.playerIndex);
+
+    if (this.opts.onCarFrame) {
+      this.netTimer += dt;
+      if (this.netTimer >= 0.05) {
+        this.netTimer = 0;
+        const car = this.playerRacer.car;
+        this.opts.onCarFrame({
+          index: car.index,
+          u: car.u,
+          lateral: car.lateral,
+          heading: car.heading,
+          speed: car.speedKmh,
+          pos: [car.pos.x, car.pos.y, car.pos.z],
+          compound: car.getCompound(),
+        });
+      }
+    }
 
     this.hudTimer += dt;
     if (this.hudTimer > 0.075) {
@@ -517,19 +573,29 @@ export class RaceSession {
 
   private stepCountdown(dt: number): void {
     this.countdown += dt;
-    const lights = Math.min(5, Math.floor(this.countdown / 0.72));
-    if (lights > 0) this.hud.setStartLights(lights, lights >= 5 ? 'HOLD…' : 'GET READY');
+    const firstLightAt = 0.55;
+    const interval = 0.82;
+    const allOnAt = firstLightAt + interval * 4;
+    const releaseAt = allOnAt + this.lightsOutDelay;
+    const lights = clamp(Math.floor((this.countdown - firstLightAt) / interval) + 1, 0, 5);
+    if (this.countdown < releaseAt) {
+      if (lights > 0) {
+        this.hud.setStartLights(lights, lights >= 5 ? 'HOLD…' : 'LIGHTS ON');
+        this.renderer.setStartLights(lights, false);
+      }
+    }
     this.racers.forEach((racer) => {
       racer.car.setInput({ throttle: 0, brake: 0, steer: 0 });
       racer.car.update(dt);
       racer.prevU = racer.car.u;
     });
     this.updateStandings();
-    if (this.countdown >= 4.55) {
+    if (this.countdown >= releaseAt) {
       this.phase = 'running';
       this.clock = 0;
-      this.greenTimer = 1.1;
-      this.hud.setStartLights(5, 'LIGHTS OUT', true);
+      this.greenTimer = 1.5;
+      this.hud.setStartLights(0, 'LIGHTS OUT', true);
+      this.renderer.setStartLights(0, true);
       this.hud.showMessage('LIGHTS OUT AND AWAY WE GO', 'flag-green', 1800);
       this.racers.forEach((racer) => {
         racer.lapStart = 0;
@@ -946,7 +1012,9 @@ export class RaceSession {
             ? 'FEATURE RACE'
             : this.opts.mode === 'timetrial'
               ? 'TIME TRIAL'
-              : 'QUICK RACE',
+              : this.opts.mode === 'party'
+                ? 'PARTY RACE'
+                : 'QUICK RACE',
       trackName: this.opts.track.name.toUpperCase(),
       lap: this.phase === 'qualifying' ? Math.min(3, player.laps + 1) : player.laps + 1,
       totalLaps: total,
@@ -955,8 +1023,8 @@ export class RaceSession {
       time: this.phase === 'qualifying' ? formatTime(Math.max(0, this.qualifyingTime)) : formatTime(lapTime),
       delta: this.deltaString(),
       deltaSlow: !this.deltaIsBest && this.lastDelta > 0,
-      weather: this.opts.track.night ? 'NIGHT · 19°C' : 'DRY · 27°C',
-      notes,
+      weather: this.opts.weather === 'wet' ? 'WET · 18°C' : this.opts.track.night ? 'NIGHT · 19°C' : 'DRY · 27°C',
+      notes: `${notes}${this.opts.flags === false ? ' · FLAGS OFF' : ''}`,
       penalty: player.penalty > 0 ? `STEWARDS +${Math.round(player.penalty)}s` : '',
       status: this.phase,
     };

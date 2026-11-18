@@ -49,7 +49,7 @@ export class AIDriver {
     this.aggression = clamp((pace - 50) / 60, 0, 1);
     this.skill = this.aggression;
     const category = CAR_CLASSES[car.config.carClass].category;
-    this.classPace = category === 'kart' ? 0.64 : category === 'gt' ? 0.8 : 1;
+    this.classPace = category === 'kart' ? 0.64 : category === 'gt' ? 0.8 : category === 'prototype' ? 0.93 : 1;
   }
 
   private paceFactor(): number {

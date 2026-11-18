@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { CarConfig } from '../garage/carConfig';
+import type { PartyCarFrame } from '../net/party';
 import type { RacingLineMode } from '../physics/settings';
 import type { RaceCar } from '../physics/vehicle';
 import type { TrackData } from '../tracks/types';
@@ -20,6 +21,7 @@ export class RaceRenderer {
   readonly rig: CameraRig;
   readonly track: TrackData;
   readonly visuals: CarVisual[] = [];
+  private readonly remoteVisuals = new Map<string, CarVisual>();
   readonly trackGroup: THREE.Group;
   private racingLine: THREE.Object3D | null = null;
   private racingLineMode: RacingLineMode = 'corners';
@@ -115,6 +117,19 @@ export class RaceRenderer {
     this.refreshRacingLine();
   }
 
+  /** Drive the five physical lamps under the start gantry from the race clock. */
+  setStartLights(count: number, release = false): void {
+    if (!this.trackGroup) return;
+    for (let i = 0; i < 5; i++) {
+      const light = this.trackGroup.getObjectByName(`start-light-${i}`) as THREE.Mesh | undefined;
+      const material = light?.material;
+      if (!material || Array.isArray(material) || !(material instanceof THREE.MeshStandardMaterial)) continue;
+      const on = !release && i < count;
+      material.emissiveIntensity = on ? 3.4 : 0;
+      material.color.set(on ? '#3a0505' : '#1a0505');
+    }
+  }
+
   private refreshRacingLine(): void {
     if (this.racingLine) {
       this.scene.remove(this.racingLine);
@@ -158,6 +173,38 @@ export class RaceRenderer {
     }
     this.adaptQuality(dt);
     this.render();
+  }
+
+  /** A lightweight visual for another party member. Its pose comes from the network. */
+  addRemoteCar(id: string, config: CarConfig): void {
+    if (this.remoteVisuals.has(id)) return;
+    const visual = new CarVisual(config, null, true);
+    visual.group.userData.remoteId = id;
+    visual.group.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).castShadow = false;
+    });
+    this.scene.add(visual.group);
+    this.remoteVisuals.set(id, visual);
+  }
+
+  updateRemoteCar(id: string, frame: PartyCarFrame, dt: number): void {
+    const visual = this.remoteVisuals.get(id);
+    if (!visual) return;
+    const sample = this.track.samples[Math.max(0, Math.min(this.track.samples.length - 1, frame.index))];
+    visual.group.position.set(frame.pos[0], frame.pos[1], frame.pos[2]);
+    const basis = new THREE.Matrix4().makeBasis(sample.right, sample.up, sample.tangent);
+    const qTrack = new THREE.Quaternion().setFromRotationMatrix(basis);
+    const trackHeading = Math.atan2(sample.tangent.x, sample.tangent.z);
+    const yaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), frame.heading - trackHeading);
+    visual.group.quaternion.copy(qTrack).multiply(yaw);
+    visual.update(dt, { speed: frame.speed, steer: 0, drs: false, brake: 0 });
+  }
+
+  removeRemoteCar(id: string): void {
+    const visual = this.remoteVisuals.get(id);
+    if (!visual) return;
+    this.scene.remove(visual.group);
+    this.remoteVisuals.delete(id);
   }
 
   /** Drop render resolution after a sustained slow patch, then recover. */
@@ -296,6 +343,8 @@ export class RaceRenderer {
   dispose(): void {
     this.disposed = true;
     this.removeGhost();
+    for (const visual of this.remoteVisuals.values()) this.scene.remove(visual.group);
+    this.remoteVisuals.clear();
     this.renderer.dispose();
     // Geometry and the GLB template are shared across sessions; never dispose
     // them here or a restart would render an empty car.

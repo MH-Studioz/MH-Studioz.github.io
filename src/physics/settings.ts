@@ -5,7 +5,7 @@ export type RacingLineMode = 'off' | 'corners' | 'full';
 export type GearboxMode = 'auto' | 'manual';
 export type DamageMode = 'off' | 'visual' | 'reduced' | 'full';
 export type TyreWearRate = '1x' | '2x' | 'off';
-export type TrackLimitsMode = 'lenient' | 'strict';
+export type TrackLimitsMode = 'off' | 'lenient' | 'strict';
 
 export interface AssistSettings {
   brakingAssist: BrakingAssist;

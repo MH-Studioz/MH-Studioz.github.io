@@ -1,20 +1,31 @@
 import './style.css';
+import './shell.css';
 import type { Group } from 'three';
 import { loadTrackCatalog } from './tracks/geojsonLoader';
 import { buildTrack } from './tracks/trackBuilder';
 import { loadCarConfig } from './garage/carConfig';
+import type { CarConfig } from './garage/carConfig';
 import { GaragePreview } from './garage/garagePreview';
 import { loadCarTemplate } from './render/carVisual';
-import { MenuUI, type MenuSelection } from './ui/menu';
-import { DifficultyPanel } from './ui/difficulty';
+import { HomeUI } from './ui/home';
+import { RaceSetupUI } from './ui/raceSetup';
+import { TimeTrialUI } from './ui/timeTrial';
+import { MultiplayerUI } from './ui/multiplayer';
+import { AccountUI } from './ui/account';
+import { TrackLibrary } from './ui/trackLibrary';
 import { GarageUI } from './ui/garage';
 import { RaceSession } from './game/raceSession';
+import { currentAccount, type DriverAccount } from './account/account';
+import { difficultyForRace, type RaceSelection } from './app/raceOptions';
+import type { PartyRaceConfig } from './net/party';
 
 declare global {
   interface Window {
     __apex?: { getSession: () => RaceSession | null };
   }
 }
+
+type ScreenId = 'home' | 'race' | 'timetrial' | 'multiplayer' | 'garage' | null;
 
 const boot = document.getElementById('boot');
 const bootBar = document.getElementById('boot-bar-fill');
@@ -42,14 +53,6 @@ function fatal(message: string): void {
   el?.classList.remove('hidden');
 }
 
-function setScreen(id: 'menu' | 'garage' | null): void {
-  document.getElementById('screen-menu')?.classList.toggle('active', id === 'menu');
-  document.getElementById('screen-garage')?.classList.toggle('active', id === 'garage');
-  if (id !== null) {
-    document.getElementById('screen-results')?.classList.remove('active');
-  }
-}
-
 async function bootApp(): Promise<void> {
   progress(8, 'LOADING CIRCUIT DATA…');
   const catalog = await loadTrackCatalog();
@@ -62,75 +65,180 @@ async function bootApp(): Promise<void> {
   } catch (err) {
     console.warn('[boot] car template failed; procedural car will be used.', err);
   }
-  progress(64, template ? '2026 OPEN-WHEEL CAR LOADED · PREPARING GARAGE…' : 'PROCEDURAL OPEN-WHEEL CAR · PREPARING GARAGE…');
+  progress(64, template ? 'GP 2026 CAR LOADED · PREPARING STUDIO…' : 'PROCEDURAL CAR READY · PREPARING STUDIO…');
   await new Promise((resolve) => setTimeout(resolve, 30));
 
   const config = loadCarConfig();
   const canvas = document.getElementById('race-canvas') as HTMLCanvasElement | null;
   const garageCanvas = document.getElementById('garage-canvas') as HTMLCanvasElement | null;
+  const homeCanvas = document.getElementById('home-car-canvas') as HTMLCanvasElement | null;
   const garageControls = document.getElementById('garage-controls');
   const garageSpec = document.getElementById('garage-spec');
-  if (!canvas || !garageCanvas || !garageControls || !garageSpec) {
+  if (!canvas || !garageCanvas || !homeCanvas || !garageControls || !garageSpec) {
     throw new Error('Required simulator DOM elements are missing.');
   }
 
+  progress(76, 'WIRING GARAGE & RACE CONTROL…');
+  const homePreview = new GaragePreview(homeCanvas, config, template);
   const garagePreview = new GaragePreview(garageCanvas, config, template);
-  progress(80, 'WIRING RACE CONTROL…');
+  const library = new TrackLibrary(catalog);
 
   let session: RaceSession | null = null;
-  let garage: GarageUI | null = null;
-  let menu: MenuUI | null = null;
+  let garageReturn: 'home' | 'race' | 'timetrial' = 'home';
+  let account: DriverAccount | null = currentAccount();
+  let partyRaceActive = false;
 
   if (import.meta.env.DEV) {
     window.__apex = { getSession: () => session };
   }
 
-  const exitGarage = (): void => {
-    garagePreview.stop();
-    setScreen('menu');
-    menu?.refreshProfile(loadCarConfig());
+  const screens: Record<Exclude<ScreenId, null>, HTMLElement | null> = {
+    home: document.getElementById('screen-menu'),
+    race: document.getElementById('screen-race-setup'),
+    timetrial: document.getElementById('screen-timetrial'),
+    multiplayer: document.getElementById('screen-multiplayer'),
+    garage: document.getElementById('screen-garage'),
   };
 
-  garage = new GarageUI(garageControls, garageSpec, garagePreview, exitGarage);
-  const difficulty = new DifficultyPanel(document.getElementById('difficulty-panel') as HTMLElement, () => {
-    /* The panel persists its own settings; the race reads the live object. */
+  let currentScreen: ScreenId = 'home';
+
+  const setScreen = (id: ScreenId): void => {
+    currentScreen = id;
+    for (const [key, el] of Object.entries(screens)) {
+      el?.classList.toggle('active', key === id);
+    }
+    document.getElementById('screen-results')?.classList.remove('active');
+    if (id === 'home') {
+      homePreview.start();
+    } else {
+      homePreview.stop();
+    }
+    if (id !== 'garage') garagePreview.stop();
+  };
+
+  const accountUI = new AccountUI();
+
+  const refreshAccount = (next: DriverAccount | null): void => {
+    account = next;
+    home.setAccount(account);
+    multiplayer.setAccount(account);
+  };
+
+  const home = new HomeUI({
+    onAction: (action) => {
+      if (action === 'race') {
+        raceSetup.open();
+        setScreen('race');
+      } else if (action === 'car') {
+        openGarage('home');
+      } else if (action === 'timetrial') {
+        timeTrial.open();
+        setScreen('timetrial');
+      } else if (action === 'multiplayer') {
+        multiplayer.open();
+        setScreen('multiplayer');
+      }
+    },
+    onAccount: () => accountUI.open(),
+    onEditCar: () => openGarage('home'),
   });
 
-  const openGarage = (): void => {
+  let garage!: GarageUI;
+
+  const openGarage = (returnTo: 'home' | 'race' | 'timetrial'): void => {
     if (session) return;
-    menu?.closeLibrary();
+    garageReturn = returnTo;
     setScreen('garage');
-    garage?.open();
+    garage.open();
     requestAnimationFrame(() => garagePreview.start());
   };
 
-  const endRace = (): void => {
-    session?.dispose();
-    session = null;
-    setScreen('menu');
-    menu?.refreshProfile(loadCarConfig());
+  const exitGarage = (): void => {
+    garagePreview.stop();
+    if (garageReturn === 'race') {
+      raceSetup.open();
+      setScreen('race');
+    } else if (garageReturn === 'timetrial') {
+      timeTrial.open();
+      setScreen('timetrial');
+    } else {
+      home.refresh(loadCarConfig());
+      homePreview.setConfig(loadCarConfig());
+      setScreen('home');
+    }
   };
 
-  const startRace = async (selection: MenuSelection): Promise<void> => {
+  let raceSetup!: RaceSetupUI;
+  let timeTrial!: TimeTrialUI;
+  let multiplayer!: MultiplayerUI;
+
+  raceSetup = new RaceSetupUI(library, {
+    onBack: () => setScreen('home'),
+    onEditCar: () => openGarage('race'),
+    onStart: (selection) => void startRace(selection),
+    onTrackChanged: () => {
+      /* The shared library updates every screen that subscribes to it. */
+    },
+  });
+
+  timeTrial = new TimeTrialUI(library, {
+    onBack: () => setScreen('home'),
+    onEditCar: () => openGarage('timetrial'),
+    onStart: (selection) => void startRace(selection),
+  });
+
+  multiplayer = new MultiplayerUI(library, {
+    onBack: () => setScreen('home'),
+    requestAccount: (after) => accountUI.open(after),
+    onRaceStart: (race) => void startPartyRace(race),
+    onFrame: (from, frame) => session?.updateRemoteCar(from, frame),
+  });
+
+  const endRace = (): void => {
+    const returnToParty = partyRaceActive;
+    partyRaceActive = false;
+    session?.dispose();
+    session = null;
+    if (returnToParty && multiplayer.isInParty()) {
+      multiplayer.open();
+      setScreen('multiplayer');
+      return;
+    }
+    home.refresh(loadCarConfig());
+    homePreview.setConfig(loadCarConfig());
+    setScreen('home');
+  };
+
+  const startRace = async (
+    selection: RaceSelection,
+    playerOverride?: CarConfig,
+  ): Promise<void> => {
     if (session) return;
-    menu?.closeLibrary();
-    showBoot(`BUILDING ${selection.feature.name.toUpperCase()}…`, 42);
+    const feature = catalog.features.find((f) => f.id === selection.featureId) ?? library.selected;
+    const settings = { ...selection.settings };
+    showBoot(`BUILDING ${feature.name.toUpperCase()}…`, 42);
     await new Promise((resolve) => setTimeout(resolve, 60));
     try {
-      const track = buildTrack(selection.feature);
+      const track = buildTrack(feature);
+      track.night = settings.timeOfDay === 'night';
       progress(76, 'PREPARING GRID · 120 HZ PHYSICS…');
       await new Promise((resolve) => setTimeout(resolve, 40));
       setScreen(null);
-      document.getElementById('screen-results')?.classList.remove('active');
+      const playerConfig = playerOverride ?? loadCarConfig();
+      if (settings.weather === 'wet') playerConfig.livery.compound = 'wet';
       session = new RaceSession({
         canvas,
         track,
-        playerConfig: loadCarConfig(),
-        difficulty: difficulty.settings,
+        playerConfig,
+        difficulty: difficultyForRace(settings),
         mode: selection.mode,
         laps: selection.laps,
+        aiCount: settings.aiCount,
+        weather: settings.weather,
+        flags: settings.flags,
         template,
         onExit: endRace,
+        onCarFrame: selection.mode === 'party' ? (frame) => multiplayer.sendCarFrame(frame) : undefined,
       });
       hideBoot();
     } catch (err) {
@@ -139,27 +247,56 @@ async function bootApp(): Promise<void> {
     }
   };
 
-  menu = new MenuUI(
-    catalog,
-    (selection) => {
-      void startRace(selection);
-    },
-    openGarage,
-  );
-  menu.refreshProfile(loadCarConfig());
-  setScreen('menu');
+  const startPartyRace = async (race: PartyRaceConfig): Promise<void> => {
+    if (session) return;
+    const feature = catalog.features.find((f) => f.id === race.trackId) ?? library.selected;
+    const car: CarConfig = {
+      ...race.car,
+      driverName: account?.name ?? race.car.driverName,
+      livery: { ...race.car.livery },
+      setup: { ...race.car.setup },
+    };
+    partyRaceActive = true;
+    try {
+      await startRace(
+        {
+          mode: 'party',
+          featureId: feature.id,
+          laps: Math.max(1, Math.round(race.laps)),
+          settings: { ...race.settings },
+        },
+        car,
+      );
+      if (session) {
+        for (const member of race.members) {
+          if (member.id === account?.id) continue;
+          session.addRemoteCar(member.id, car);
+        }
+      } else {
+        partyRaceActive = false;
+      }
+    } catch (err) {
+      partyRaceActive = false;
+      console.error('[party] failed to start race', err);
+    }
+  };
+
+  accountUI.onAccountChange = (next) => refreshAccount(next);
+  home.setAccount(account);
+  multiplayer.setAccount(account);
+  garage = new GarageUI(garageControls, garageSpec, garagePreview, exitGarage);
+  home.refresh(loadCarConfig());
+  setScreen('home');
+  homePreview.start();
   progress(100, 'READY');
 
   window.addEventListener('resize', () => {
-    if (document.getElementById('screen-garage')?.classList.contains('active')) {
-      garagePreview.resize();
-    }
+    if (currentScreen === 'home') homePreview.resize();
+    if (currentScreen === 'garage') garagePreview.resize();
   });
 
   document.addEventListener('keydown', (event) => {
-    if (event.key === 'Escape' && document.getElementById('screen-garage')?.classList.contains('active')) {
-      exitGarage();
-    }
+    if (event.key === 'Escape' && currentScreen === 'garage') exitGarage();
   });
 
   await new Promise((resolve) => setTimeout(resolve, 260));

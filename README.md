@@ -1,28 +1,38 @@
-# Apex GP 2026
+# GP 2026
 
-A racing simulator with open-wheel, GT and kart classes, built with TypeScript, Vite and Three.js. It runs in the browser and as a Windows desktop app.
+A racing simulator with open-wheel, GT, prototype and kart classes, built with TypeScript, Vite and Three.js. It runs in the browser and as a Windows desktop app.
 
 **Play:** https://mh-studioz.github.io/apex-gp-2026/
+
+**Beta v0.1:** browser build on GitHub Pages, plus Windows NSIS and portable EXE assets on the GitHub release.
 
 ## What is in the game
 
 - **41 real circuits** generated from GeoJSON outlines, with elevation, banking, kerbs, run-off, tyre walls, sponsor boards, marshal posts, start lights, a painted grid, rubbered-in racing line, grandstands and DRS zones.
-- **Five car classes** with genuinely different physics and bodies:
-  - **Apex Hybrid** — 798 kg turbo-hybrid, maximum downforce.
-  - **Apex V10** — 760 kg high-revving V10, less aero, higher top speed.
-  - **Apex Junior** — 620 kg entry formula, lower power and grip.
-  - **Apex GT** — 1,364 kg GT3-style coupe with closed cockpit, ABS-friendly braking and sequential gears.
-  - **Apex Kart** — 175 kg direct-drive kart, single gear, 115 km/h and no DRS or ERS.
-- **Garage:** team and driver identity, paint, five livery patterns, race number, visor tint, aero package, wing angles, brake bias, differential, suspension, ride height and starting compound. Everything persists locally.
-- **Race Weekend:** three-lap qualifying, live timing, a starting grid, a Feature Race, and the mandatory two-compound rule with a 30-second penalty if you do not stop.
-- **Quick Race** and **Time Trial** with persistent best-lap ghosts recorded at 20 Hz. The whole AI grid races the selected class.
-- **Racecraft and contact:** pure-pursuit AI with braking-distance planning, traffic awareness, start-lane holding, off-track recovery and stuck-car resets; two-circle capsule hitboxes and a barrier at the visible edge of the run-off.
+- **Six car classes** with genuinely different physics and bodies:
+  - **GP Hybrid** — 798 kg turbo-hybrid, maximum downforce.
+  - **GP V10** — 760 kg high-revving V10, less aero, higher top speed.
+  - **GP Junior** — 620 kg entry formula, lower power and grip.
+  - **GP GT** — 1,364 kg GT3-style coupe with closed cockpit, ABS-friendly braking and sequential gears.
+  - **GP Prototype** — 1,030 kg closed-cockpit hybrid endurance prototype with high-downforce bodywork and ERS.
+  - **GP Kart** — 175 kg direct-drive kart, single gear, 115 km/h and no DRS or ERS.
+- **Driver Hub:** four routes — Race, Car, Time Trial and Multiplayer — with a local driver profile or guest identity and a live car showcase on the home screen.
+- **Car studio:** team and driver identity, paint, five livery patterns, race number, visor tint, aero package, wing angles, brake bias, differential, suspension, ride height and starting compound. The default livery is black and blue, and everything persists locally.
+- **Race builder:** choose the car, tune it in the studio, pick a circuit, then set weather, time of day, AI count (0, 5 or 9), AI difficulty, track-limit strictness and race flags before the standing start.
+- **Time Trial:** ideal conditions — dry, daylight, no AI, limits off — with the current car and circuit, plus a persistent best-lap ghost recorded at 20 Hz.
+- **Multiplayer:** host a private party and share a six-digit code, or join with one. The host launches the race with the party's circuit and car; every guest enters the same session, and lightweight car poses are relayed over PeerJS/WebRTC so party cars appear on track. Contact and authoritative race-state reconciliation are not part of this build.
+- **Racecraft and contact:** pure-pursuit AI with braking-distance planning, traffic awareness, staggered start-lane holding, off-track recovery and stuck-car resets; two-circle capsule hitboxes, bodywork-aware barrier contact and a barrier at the visible edge of the run-off.
+- **Standing starts:** five gantry lamps illuminate in sequence, hold red for an unpredictable beat, then go out together; the race clock starts on lights out. The painted grid uses wider staggered boxes for ten cars.
 - **Performance:** instanced scenery, merged car bodies, low-detail AI wheels, a resolution cap and adaptive pixel ratio keep a full grid smooth.
 - **Pit stops:** pit-box detection, pit-lane speed limiter, tyre change, wing and brake repairs.
 - **120 Hz fixed-step physics:** load-sensitive tyre grip, tyre temperatures and wear, fuel burn, DRS, ERS, brake bias, differential, suspension and banked corners.
 - **Driver aids:** traction control, ABS, stability control, automatic gearbox, racing line, difficulty presets, camera modes and full remapping-free keyboard controls.
 - **Synthesised audio** for engine, tyres, wind and kerbs.
 - **Electron packaging** for Windows (NSIS installer and portable EXE).
+
+## DEEP ATLAS
+
+The site also hosts **DEEP ATLAS**, a self-contained geography rarity game at [`/deep-atlas/`](deep-atlas/): seven timed prompts per round, five modes, a 769-entry bundled geography database, typo-tolerant answers, inverse-rarity depth scoring and a shareable emoji scorecard. It uses Leaflet with CARTO Dark Matter tiles and needs no API keys. It is built as a second Vite page by `npm run build`; open `http://127.0.0.1:5173/deep-atlas/` while developing.
 
 ## Controls
 
@@ -62,6 +72,8 @@ npm run desktop:build
 
 `desktop:build` writes the NSIS installer and a portable `.exe` to `release/`.
 
+The current beta release is tagged `v0.1.0-beta.1` and publishes `GP2026-0.1.0-beta.1-setup.exe` and `GP2026-0.1.0-beta.1-portable.exe` alongside the Pages deployment.
+
 ## Deployment
 
 `.github/workflows/deploy.yml` builds and publishes `dist/` to GitHub Pages on every push to `main`. Enable **Settings → Pages → Source: GitHub Actions** once for the repository.
@@ -77,7 +89,7 @@ src/
   physics/     vehicle, tyres, aero, setup, settings
   render/      track mesh, cars, environment, cameras
   tracks/      GeoJSON loading and track maths
-  ui/          menu, garage, HUD, minimap, pause, settings
+  ui/          driver hub, race builder, garage, HUD, minimap, pause, multiplayer
 electron/      desktop main process and preload
 public/        circuits, car model and audio
 ```
@@ -93,7 +105,7 @@ See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for full attribution.
 
 ## Trademark notice
 
-Apex GP 2026 is an original, unofficial project. It is not associated with, approved by or endorsed by Formula One Licensing B.V., the FIA, any racing series, team or circuit operator. “F1”, “FORMULA 1”, “FIA FORMULA ONE WORLD CHAMPIONSHIP”, “GRAND PRIX” and related marks are trademarks of their respective owners. Real circuit names are used only as factual geographic references for their layouts. All teams, drivers and car classes in the game are fictional.
+GP 2026 is an original, unofficial project. It is not associated with, approved by or endorsed by Formula One Licensing B.V., the FIA, any racing series, team or circuit operator. “F1”, “FORMULA 1”, “FIA FORMULA ONE WORLD CHAMPIONSHIP”, “GRAND PRIX” and related marks are trademarks of their respective owners. Real circuit names are used only as factual geographic references for their layouts. All teams, drivers and car classes in the game are fictional.
 
 ## License
 

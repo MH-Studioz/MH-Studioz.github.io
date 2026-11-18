@@ -1,4 +1,4 @@
-// Apex GP 2026 - Electron main process.
+// GP 2026 - Electron main process.
 // Fullscreen, hardware accelerated, unlocked frame rate.
 const { app, BrowserWindow, protocol, powerSaveBlocker } = require('electron');
 const path = require('node:path');

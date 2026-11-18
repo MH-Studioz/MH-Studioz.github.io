@@ -67,7 +67,9 @@ export class GaragePreview {
     const hemi = new THREE.HemisphereLight('#bcd6ff', '#08090c', 0.65);
     this.scene.add(hemi);
 
-    const key = new THREE.SpotLight('#fff2dc', 420, 40, 0.62, 0.55, 1.5);
+    // Tuned for the black launch livery: the old 420/300 rig blew the
+    // specular highlights out to white, hiding the paint colour.
+    const key = new THREE.SpotLight('#fff2dc', 170, 40, 0.62, 0.55, 1.5);
     key.position.set(4.5, 8, 5);
     key.target.position.set(0, 0.6, 0);
     key.castShadow = true;
@@ -76,13 +78,13 @@ export class GaragePreview {
     this.scene.add(key);
     this.scene.add(key.target);
 
-    const rim = new THREE.SpotLight('#2f7dff', 300, 35, 0.7, 0.5, 1.6);
+    const rim = new THREE.SpotLight('#2f7dff', 110, 35, 0.7, 0.5, 1.6);
     rim.position.set(-6, 5, -4);
     rim.target.position.set(0, 0.6, 0);
     this.scene.add(rim);
     this.scene.add(rim.target);
 
-    const front = new THREE.PointLight('#e10600', 90, 18, 2);
+    const front = new THREE.PointLight('#e10600', 35, 18, 2);
     front.position.set(0, 1.2, 6.5);
     this.scene.add(front);
 

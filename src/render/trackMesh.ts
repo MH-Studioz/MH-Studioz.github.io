@@ -225,7 +225,7 @@ function addStartGantry(group: THREE.Group, track: TrackData): void {
     post.position.set(side * span * 0.5, 3.1, 0);
     gantry.add(post);
   }
-  const signTex = createSignTexture('APEX\nGP 2026', '#080a0f', '#ffffff');
+  const signTex = createSignTexture('GP\n2026', '#080a0f', '#ffffff');
   const sign = new THREE.Mesh(
     new THREE.PlaneGeometry(4.8, 4.8),
     new THREE.MeshBasicMaterial({ map: signTex, toneMapped: false, side: THREE.DoubleSide }),
@@ -234,16 +234,24 @@ function addStartGantry(group: THREE.Group, track: TrackData): void {
   sign.rotation.y = Math.PI;
   gantry.add(sign);
 
+  const lightHousing = new THREE.Mesh(
+    new THREE.BoxGeometry(4.45, 0.86, 0.18),
+    new THREE.MeshStandardMaterial({ color: '#080a0d', roughness: 0.62, metalness: 0.25 }),
+  );
+  lightHousing.position.set(0, 5.72, -0.04);
+  gantry.add(lightHousing);
+
   // Five start lights under the gantry beam.
   const lightMat = new THREE.MeshStandardMaterial({
     color: '#260000',
     emissive: '#ff1200',
-    emissiveIntensity: 1.8,
+    emissiveIntensity: 0,
     roughness: 0.3,
   });
   for (let i = 0; i < 5; i++) {
-    const light = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 8), lightMat);
-    light.position.set((i - 2) * 0.72, 5.72, 0.14);
+    const light = new THREE.Mesh(new THREE.SphereGeometry(0.24, 14, 10), lightMat.clone());
+    light.name = `start-light-${i}`;
+    light.position.set((i - 2) * 0.72, 5.72, 0.1);
     gantry.add(light);
   }
 
@@ -475,7 +483,7 @@ function buildMarshalPosts(track: TrackData): THREE.Group {
 
 function buildSponsorBoards(track: TrackData): THREE.Group {
   const group = new THREE.Group();
-  const texts = ['APEX', 'GRID', 'PULSE', 'NITRO', 'VELOCITY', 'RACE'];
+  const texts = ['GP 2026', 'GRID', 'PULSE', 'NITRO', 'VELOCITY', 'RACE'];
   for (let i = 0; i < 12; i++) {
     const sample = track.samples[Math.round(((i + 0.5) / 12) * track.samples.length) % track.samples.length];
     const side = i % 2 === 0 ? 1 : -1;
@@ -532,10 +540,10 @@ function addStartGrid(group: THREE.Group, track: TrackData): void {
   ctx.clearRect(0, 0, 256, 512);
   ctx.strokeStyle = 'rgba(245,245,245,0.85)';
   ctx.lineWidth = 5;
-  for (let row = 0; row < 5; row++) {
+  for (let row = 0; row < 6; row++) {
     for (const col of [0, 1]) {
       const x = 32 + col * 110;
-      const y = 40 + row * 92;
+      const y = 22 + row * 78;
       ctx.strokeRect(x, y, 84, 58);
       ctx.fillStyle = 'rgba(245,245,245,0.7)';
       ctx.fillRect(x + 10, y + 44, 64, 4);
@@ -546,11 +554,11 @@ function addStartGrid(group: THREE.Group, track: TrackData): void {
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   const grid = new THREE.Mesh(
-    new THREE.PlaneGeometry(track.width * 0.92, 22),
+    new THREE.PlaneGeometry(track.width * 0.92, 50),
     new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.9, depthWrite: false }),
   );
   grid.rotation.x = -Math.PI / 2;
-  grid.position.set(0, 0.03, -10);
+  grid.position.set(0, 0.03, -24);
   const sample = track.samples[Math.round(0.986 * track.samples.length) % track.samples.length];
   const holder = new THREE.Group();
   placeOnTrack(holder, sample, 0, 0);

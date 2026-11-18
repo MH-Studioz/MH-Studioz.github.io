@@ -306,12 +306,13 @@ export class HUD {
     this.timing.innerHTML = html;
   }
 
-  setStartLights(count: number, label: string, go = false): void {
+  setStartLights(count: number, label: string, release = false): void {
     this.lights.classList.remove('hidden');
+    this.lights.classList.toggle('release', release);
     this.lightsLabel.textContent = label;
     this.lightRail.forEach((el, i) => {
-      el.classList.toggle('on', !go && i < count);
-      el.classList.toggle('go', go);
+      el.classList.toggle('on', !release && i < count);
+      el.classList.toggle('go', release);
     });
   }
 

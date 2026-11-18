@@ -1,8 +1,8 @@
 {
   "name": "gp-2026",
   "private": true,
-  "version": "1.0.0",
-  "description": "GP 2026 - open-wheel, GT and kart racing simulator",
+  "version": "0.1.0-beta.1",
+  "description": "GP 2026 - open-wheel, GT, prototype and kart racing simulator",
   "author": "GP 2026",
   "license": "MIT",
   "main": "electron/main.cjs",

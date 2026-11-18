@@ -3,8 +3,8 @@ import type { CompoundId } from '../physics/tyres';
 export type FinishType = 'gloss' | 'matte' | 'carbon';
 export type LiveryPattern = 'classic' | 'fade' | 'chevron' | 'halftone' | 'minimal';
 export type AeroPackage = 'low-drag' | 'balanced' | 'high-downforce';
-export type CarClass = 'hybrid' | 'v10' | 'junior' | 'gt' | 'kart';
-export type CarCategory = 'open-wheel' | 'gt' | 'kart';
+export type CarClass = 'hybrid' | 'v10' | 'junior' | 'gt' | 'prototype' | 'kart';
+export type CarCategory = 'open-wheel' | 'gt' | 'prototype' | 'kart';
 
 export interface CarClassSpec {
   id: CarClass;
@@ -40,7 +40,7 @@ export interface CarClassSpec {
 export const CAR_CLASSES: Record<CarClass, CarClassSpec> = {
   hybrid: {
     id: 'hybrid',
-    label: 'Apex Hybrid',
+    label: 'GP Hybrid',
     short: 'HYB',
     blurb: 'Turbo-hybrid · 798 kg · maximum downforce',
     category: 'open-wheel',
@@ -69,7 +69,7 @@ export const CAR_CLASSES: Record<CarClass, CarClassSpec> = {
   },
   v10: {
     id: 'v10',
-    label: 'Apex V10',
+    label: 'GP V10',
     short: 'V10',
     blurb: 'High-revving V10 · lighter · higher top speed',
     category: 'open-wheel',
@@ -98,7 +98,7 @@ export const CAR_CLASSES: Record<CarClass, CarClassSpec> = {
   },
   junior: {
     id: 'junior',
-    label: 'Apex Junior',
+    label: 'GP Junior',
     short: 'JNR',
     blurb: 'Entry formula · 620 kg · lower power and grip',
     category: 'open-wheel',
@@ -127,7 +127,7 @@ export const CAR_CLASSES: Record<CarClass, CarClassSpec> = {
   },
   gt: {
     id: 'gt',
-    label: 'Apex GT',
+    label: 'GP GT',
     short: 'GT',
     blurb: 'Closed-wheel GT3 · 1290 kg · mechanical grip',
     category: 'gt',
@@ -154,9 +154,38 @@ export const CAR_CLASSES: Record<CarClass, CarClassSpec> = {
     collisionHalfLength: 1.45,
     collisionRadius: 1.0,
   },
+  prototype: {
+    id: 'prototype',
+    label: 'GP Prototype',
+    short: 'P1',
+    blurb: 'Closed-cockpit hybrid · 1,030 kg · endurance prototype',
+    category: 'prototype',
+    mass: 1030,
+    grip: 1.08,
+    aero: 0.92,
+    drag: 1.05,
+    wheelbase: 3.05,
+    trackWidth: 1.72,
+    cgHeight: 0.38,
+    yawInertia: 1500,
+    wheelRadius: 0.36,
+    brakeDecel: 38,
+    steerScale: 1.12,
+    fuelCapacity: 100,
+    fuelDensity: 0.745,
+    gearRatios: [3.1, 2.45, 1.98, 1.64, 1.38, 1.16],
+    finalDrive: 3.65,
+    maxRpm: 9000,
+    idleRpm: 1800,
+    torquePeak: 680,
+    drs: false,
+    ers: true,
+    collisionHalfLength: 1.7,
+    collisionRadius: 1.02,
+  },
   kart: {
     id: 'kart',
-    label: 'Apex Kart',
+    label: 'GP Kart',
     short: 'KRT',
     blurb: 'Direct-drive kart · 175 kg · 115 km/h',
     category: 'kart',
@@ -237,17 +266,19 @@ export const PATTERN_LABELS: Record<LiveryPattern, string> = {
 
 export const DEFAULT_CONFIG: CarConfig = {
   driverName: 'A. DRIVER',
-  teamName: 'Apex GP',
+  teamName: 'GP 2026',
   carClass: 'hybrid',
   livery: {
-    primary: '#d5001c',
-    secondary: '#111318',
-    accent: '#ffd400',
-    finish: 'gloss',
+    primary: '#070b12',
+    secondary: '#2f7dff',
+    accent: '#d9f3ff',
+    // Matte black keeps the launch livery reading black under the studio
+    // lights instead of mirroring the whole softbox as white.
+    finish: 'matte',
     pattern: 'classic',
     number: 27,
-    tag: 'APX',
-    visorTint: '#c9a227',
+    tag: 'GPX',
+    visorTint: '#6fb6ff',
     aero: 'balanced',
     compound: 'medium',
   },
@@ -286,7 +317,8 @@ export const TEAM_PRESETS: TeamPreset[] = [
   { name: 'Bavaria Motorsport', primary: '#8c8f93', secondary: '#c4001a', accent: '#0a0a0a', tag: 'VEX', number: 27, aero: 'balanced', compound: 'hard' },
 ];
 
-const STORAGE_KEY = 'apex-gp-2026.car.v2';
+const STORAGE_KEY = 'gp2026.car.v1';
+const LEGACY_STORAGE_KEY = 'apex-gp-2026.car.v2';
 
 function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
@@ -300,7 +332,7 @@ export function sanitizeConfig(input: Partial<CarConfig> | null | undefined): Ca
   return {
     driverName: typeof c.driverName === 'string' && c.driverName.trim() ? c.driverName.slice(0, 22) : DEFAULT_CONFIG.driverName,
     teamName: typeof c.teamName === 'string' && c.teamName.trim() ? c.teamName.slice(0, 24) : DEFAULT_CONFIG.teamName,
-    carClass: (['hybrid', 'v10', 'junior', 'gt', 'kart'] as const).includes(c.carClass as never) ? (c.carClass as CarClass) : DEFAULT_CONFIG.carClass,
+    carClass: (['hybrid', 'v10', 'junior', 'gt', 'prototype', 'kart'] as const).includes(c.carClass as never) ? (c.carClass as CarClass) : DEFAULT_CONFIG.carClass,
     livery: {
       primary: typeof l.primary === 'string' ? l.primary : DEFAULT_CONFIG.livery.primary,
       secondary: typeof l.secondary === 'string' ? l.secondary : DEFAULT_CONFIG.livery.secondary,
@@ -336,8 +368,16 @@ export function sanitizeConfig(input: Partial<CarConfig> | null | undefined): Ca
 export function loadCarConfig(): CarConfig {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return cloneConfig(DEFAULT_CONFIG);
-    return sanitizeConfig(JSON.parse(raw) as Partial<CarConfig>);
+    if (raw) return sanitizeConfig(JSON.parse(raw) as Partial<CarConfig>);
+    const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (!legacy) return cloneConfig(DEFAULT_CONFIG);
+    const parsed = sanitizeConfig(JSON.parse(legacy) as Partial<CarConfig>);
+    // The old default was red/yellow. Give the rebrand a black/blue default
+    // without wiping a livery the driver actually customised.
+    if (parsed.teamName === 'Apex GP' && parsed.livery.primary === '#d5001c' && parsed.livery.secondary === '#111318') {
+      return cloneConfig(DEFAULT_CONFIG);
+    }
+    return parsed;
   } catch {
     return cloneConfig(DEFAULT_CONFIG);
   }

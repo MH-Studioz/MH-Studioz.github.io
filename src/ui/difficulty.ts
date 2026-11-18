@@ -233,6 +233,7 @@ export class DifficultyPanel {
     this.container.appendChild(
       row('TRACK LIMITS', segment(
         [
+          { label: 'OFF', value: 'off' as const },
           { label: 'LENIENT', value: 'lenient' as const },
           { label: 'STRICT', value: 'strict' as const },
         ],
