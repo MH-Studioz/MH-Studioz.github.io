@@ -1,6 +1,8 @@
 import { Vector3 } from 'three';
 import type { TrackData, TrackSample } from './types';
 
+export const TRACK_BARRIER_MARGIN = 6.15;
+
 export function wrapU(u: number): number {
   return ((u % 1) + 1) % 1;
 }

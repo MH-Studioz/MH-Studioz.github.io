@@ -3,18 +3,37 @@ import type { CompoundId } from '../physics/tyres';
 export type FinishType = 'gloss' | 'matte' | 'carbon';
 export type LiveryPattern = 'classic' | 'fade' | 'chevron' | 'halftone' | 'minimal';
 export type AeroPackage = 'low-drag' | 'balanced' | 'high-downforce';
-export type CarClass = 'hybrid' | 'v10' | 'junior';
+export type CarClass = 'hybrid' | 'v10' | 'junior' | 'gt' | 'kart';
+export type CarCategory = 'open-wheel' | 'gt' | 'kart';
 
 export interface CarClassSpec {
   id: CarClass;
   label: string;
   short: string;
   blurb: string;
+  category: CarCategory;
   mass: number;
-  power: number;
   grip: number;
   aero: number;
   drag: number;
+  wheelbase: number;
+  trackWidth: number;
+  cgHeight: number;
+  yawInertia: number;
+  wheelRadius: number;
+  brakeDecel: number;
+  steerScale: number;
+  fuelCapacity: number;
+  fuelDensity: number;
+  gearRatios: number[];
+  finalDrive: number;
+  maxRpm: number;
+  idleRpm: number;
+  torquePeak: number;
+  drs: boolean;
+  ers: boolean;
+  collisionHalfLength: number;
+  collisionRadius: number;
 }
 
 /** Fictional classes keep the game independent of any real championship. */
@@ -24,33 +43,145 @@ export const CAR_CLASSES: Record<CarClass, CarClassSpec> = {
     label: 'Apex Hybrid',
     short: 'HYB',
     blurb: 'Turbo-hybrid · 798 kg · maximum downforce',
+    category: 'open-wheel',
     mass: 798,
-    power: 1,
     grip: 1,
     aero: 1,
     drag: 1,
+    wheelbase: 3.6,
+    trackWidth: 1.9,
+    cgHeight: 0.32,
+    yawInertia: 1180,
+    wheelRadius: 0.36,
+    brakeDecel: 44,
+    steerScale: 1,
+    fuelCapacity: 100,
+    fuelDensity: 0.745,
+    gearRatios: [3.3, 2.65, 2.2, 1.85, 1.58, 1.36, 1.16, 0.98],
+    finalDrive: 5.2,
+    maxRpm: 13000,
+    idleRpm: 3600,
+    torquePeak: 435,
+    drs: true,
+    ers: true,
+    collisionHalfLength: 1.5,
+    collisionRadius: 0.95,
   },
   v10: {
     id: 'v10',
     label: 'Apex V10',
     short: 'V10',
     blurb: 'High-revving V10 · lighter · higher top speed',
+    category: 'open-wheel',
     mass: 760,
-    power: 1.08,
-    grip: 0.94,
+    grip: 0.96,
     aero: 0.82,
     drag: 0.93,
+    wheelbase: 3.5,
+    trackWidth: 1.9,
+    cgHeight: 0.31,
+    yawInertia: 1120,
+    wheelRadius: 0.36,
+    brakeDecel: 44,
+    steerScale: 1,
+    fuelCapacity: 110,
+    fuelDensity: 0.745,
+    gearRatios: [3.2, 2.5, 2.05, 1.72, 1.45, 1.22, 1.02],
+    finalDrive: 5.8,
+    maxRpm: 15000,
+    idleRpm: 4000,
+    torquePeak: 430,
+    drs: false,
+    ers: false,
+    collisionHalfLength: 1.5,
+    collisionRadius: 0.95,
   },
   junior: {
     id: 'junior',
     label: 'Apex Junior',
     short: 'JNR',
     blurb: 'Entry formula · 620 kg · lower power and grip',
+    category: 'open-wheel',
     mass: 620,
-    power: 0.58,
-    grip: 0.9,
+    grip: 0.92,
     aero: 0.78,
     drag: 0.86,
+    wheelbase: 3.0,
+    trackWidth: 1.75,
+    cgHeight: 0.3,
+    yawInertia: 900,
+    wheelRadius: 0.33,
+    brakeDecel: 38,
+    steerScale: 1.05,
+    fuelCapacity: 60,
+    fuelDensity: 0.745,
+    gearRatios: [3.4, 2.7, 2.2, 1.8, 1.5, 1.24],
+    finalDrive: 4.8,
+    maxRpm: 12000,
+    idleRpm: 3500,
+    torquePeak: 290,
+    drs: false,
+    ers: false,
+    collisionHalfLength: 1.35,
+    collisionRadius: 0.88,
+  },
+  gt: {
+    id: 'gt',
+    label: 'Apex GT',
+    short: 'GT',
+    blurb: 'Closed-wheel GT3 · 1290 kg · mechanical grip',
+    category: 'gt',
+    mass: 1290,
+    grip: 1.12,
+    aero: 0.34,
+    drag: 1.4,
+    wheelbase: 2.62,
+    trackWidth: 1.62,
+    cgHeight: 0.42,
+    yawInertia: 1900,
+    wheelRadius: 0.34,
+    brakeDecel: 30,
+    steerScale: 1.2,
+    fuelCapacity: 100,
+    fuelDensity: 0.745,
+    gearRatios: [3.4, 2.4, 1.85, 1.5, 1.24, 1.04],
+    finalDrive: 3.45,
+    maxRpm: 8500,
+    idleRpm: 1100,
+    torquePeak: 520,
+    drs: false,
+    ers: false,
+    collisionHalfLength: 1.45,
+    collisionRadius: 1.0,
+  },
+  kart: {
+    id: 'kart',
+    label: 'Apex Kart',
+    short: 'KRT',
+    blurb: 'Direct-drive kart · 175 kg · 115 km/h',
+    category: 'kart',
+    mass: 175,
+    grip: 1.05,
+    aero: 0.015,
+    drag: 1.8,
+    wheelbase: 1.05,
+    trackWidth: 1.2,
+    cgHeight: 0.24,
+    yawInertia: 95,
+    wheelRadius: 0.14,
+    brakeDecel: 18,
+    steerScale: 1.7,
+    fuelCapacity: 8,
+    fuelDensity: 0.75,
+    gearRatios: [1],
+    finalDrive: 5.5,
+    maxRpm: 12000,
+    idleRpm: 3000,
+    torquePeak: 30,
+    drs: false,
+    ers: false,
+    collisionHalfLength: 0.7,
+    collisionRadius: 0.55,
   },
 };
 
@@ -155,7 +286,7 @@ export const TEAM_PRESETS: TeamPreset[] = [
   { name: 'Bavaria Motorsport', primary: '#8c8f93', secondary: '#c4001a', accent: '#0a0a0a', tag: 'VEX', number: 27, aero: 'balanced', compound: 'hard' },
 ];
 
-const STORAGE_KEY = 'apex-gp-2026.car.v1';
+const STORAGE_KEY = 'apex-gp-2026.car.v2';
 
 function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
@@ -169,7 +300,7 @@ export function sanitizeConfig(input: Partial<CarConfig> | null | undefined): Ca
   return {
     driverName: typeof c.driverName === 'string' && c.driverName.trim() ? c.driverName.slice(0, 22) : DEFAULT_CONFIG.driverName,
     teamName: typeof c.teamName === 'string' && c.teamName.trim() ? c.teamName.slice(0, 24) : DEFAULT_CONFIG.teamName,
-    carClass: (['hybrid', 'v10', 'junior'] as const).includes(c.carClass as never) ? (c.carClass as CarClass) : DEFAULT_CONFIG.carClass,
+    carClass: (['hybrid', 'v10', 'junior', 'gt', 'kart'] as const).includes(c.carClass as never) ? (c.carClass as CarClass) : DEFAULT_CONFIG.carClass,
     livery: {
       primary: typeof l.primary === 'string' ? l.primary : DEFAULT_CONFIG.livery.primary,
       secondary: typeof l.secondary === 'string' ? l.secondary : DEFAULT_CONFIG.livery.secondary,
@@ -228,11 +359,11 @@ export function cloneConfig(config: CarConfig): CarConfig {
   };
 }
 
-export function teamConfig(team: TeamPreset): CarConfig {
+export function teamConfig(team: TeamPreset, carClass: CarClass = 'hybrid'): CarConfig {
   return {
     driverName: team.tag,
     teamName: team.name,
-    carClass: 'hybrid',
+    carClass,
     livery: {
       primary: team.primary,
       secondary: team.secondary,

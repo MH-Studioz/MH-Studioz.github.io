@@ -82,10 +82,10 @@ export class GarageUI {
     this.container.innerHTML = '';
 
     // 01 — class.
-    const carClass = section('01', 'RACE CLASS', '3 FORMULAS');
+    const carClass = section('01', 'RACE CLASS', '5 FORMULAS');
     const classGrid = document.createElement('div');
     classGrid.className = 'aero-grid';
-    for (const value of ['hybrid', 'v10', 'junior'] as CarClass[]) {
+    for (const value of ['hybrid', 'v10', 'junior', 'gt', 'kart'] as CarClass[]) {
       const spec = CAR_CLASSES[value];
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -387,9 +387,19 @@ export class GarageUI {
     const aero = this.config.livery.aero;
     const carClass = CAR_CLASSES[this.config.carClass];
     const pkgOffset = aero === 'low-drag' ? 13 : aero === 'high-downforce' ? -15 : 0;
-    const classOffset = carClass.id === 'v10' ? 9 : carClass.id === 'junior' ? -52 : 0;
+    const topSpeedBase: Record<CarClass, number> = {
+      hybrid: 341,
+      v10: 350,
+      junior: 289,
+      gt: 305,
+      kart: 115,
+    };
+    const aeroAuthority = carClass.category === 'open-wheel' ? 1 : carClass.category === 'gt' ? 0.32 : 0.04;
     const topSpeed = Math.round(
-      341 + pkgOffset + classOffset - (this.config.setup.rearWingAngle - 13) * 1.4 - (this.config.setup.frontWingAngle - 11) * 0.45,
+      topSpeedBase[carClass.id] +
+        pkgOffset * aeroAuthority -
+        (this.config.setup.rearWingAngle - 13) * 1.4 * aeroAuthority -
+        (this.config.setup.frontWingAngle - 11) * 0.45 * aeroAuthority,
     );
     const grip = Math.round(
       ((aero === 'high-downforce' ? 100 : aero === 'low-drag' ? 74 : 88) + (this.config.setup.rearWingAngle - 13) * 0.7 + (this.config.setup.frontWingAngle - 11) * 0.5) *

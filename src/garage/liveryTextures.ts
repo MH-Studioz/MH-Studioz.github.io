@@ -118,7 +118,50 @@ export function createAsphaltTexture(): CanvasTexture {
   const tex = finishTexture(canvas);
   tex.wrapS = RepeatWrapping;
   tex.wrapT = RepeatWrapping;
-  tex.repeat.set(1, 12);
+  tex.repeat.set(1, 1);
+  return tex;
+}
+
+/** Grass/verge texture used by the terrain skirt and the ground plane. */
+export function createGrassTexture(): CanvasTexture {
+  const { canvas, ctx } = makeCanvas(512);
+  ctx.fillStyle = '#3b4d2c';
+  ctx.fillRect(0, 0, 512, 512);
+  for (let i = 0; i < 9000; i++) {
+    const x = Math.random() * 512;
+    const y = Math.random() * 512;
+    const shade = 35 + Math.floor(Math.random() * 55);
+    ctx.fillStyle = `rgba(${shade + 8},${shade + 20},${shade - 5},${0.18 + Math.random() * 0.38})`;
+    ctx.fillRect(x, y, 1 + Math.random() * 2.2, 1 + Math.random() * 5);
+  }
+  for (let i = 0; i < 180; i++) {
+    ctx.fillStyle = `rgba(${70 + Math.random() * 30},${78 + Math.random() * 34},${45 + Math.random() * 24},0.14)`;
+    ctx.beginPath();
+    ctx.arc(Math.random() * 512, Math.random() * 512, 3 + Math.random() * 12, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const tex = finishTexture(canvas);
+  tex.wrapS = RepeatWrapping;
+  tex.wrapT = RepeatWrapping;
+  tex.repeat.set(16, 16);
+  return tex;
+}
+
+/** Coarse gravel for run-off aprons. */
+export function createGravelTexture(): CanvasTexture {
+  const { canvas, ctx } = makeCanvas(256);
+  ctx.fillStyle = '#6f6759';
+  ctx.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 5200; i++) {
+    const v = 70 + Math.floor(Math.random() * 75);
+    ctx.fillStyle = `rgba(${v + 10},${v + 4},${v - 6},${0.25 + Math.random() * 0.55})`;
+    const s = 1 + Math.random() * 3.5;
+    ctx.fillRect(Math.random() * 256, Math.random() * 256, s, s);
+  }
+  const tex = finishTexture(canvas);
+  tex.wrapS = RepeatWrapping;
+  tex.wrapT = RepeatWrapping;
+  tex.repeat.set(5, 18);
   return tex;
 }
 

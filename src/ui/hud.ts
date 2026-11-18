@@ -48,6 +48,7 @@ export class HUD {
   private rpmLeds = byId('rpm-leds');
   private ersFill = byId('ers-fill');
   private ersVal = byId('ers-val');
+  private ersBar = this.ersFill.closest('.tel-bar') as HTMLElement | null;
   private fuelFill = byId('fuel-fill');
   private fuelVal = byId('fuel-val');
   private telTyres = byId('tel-tyres');
@@ -216,6 +217,7 @@ export class HUD {
 
     this.ersFill.style.width = `${Math.round(telemetry.ers * 100)}%`;
     this.ersVal.textContent = `${Math.round(telemetry.ers * 100)}%`;
+    this.ersBar?.classList.toggle('hidden', !telemetry.ersEquipped);
     const fuelRatio = Math.max(0, Math.min(1, telemetry.fuel / 100));
     this.fuelFill.style.width = `${Math.round(fuelRatio * 100)}%`;
     this.fuelVal.textContent = `${telemetry.fuel.toFixed(0)}L`;
@@ -223,7 +225,8 @@ export class HUD {
     this.drsBadge.textContent = telemetry.drsOpen ? 'DRS OPEN' : 'DRS';
     this.drsBadge.classList.toggle('active', telemetry.drsOpen);
     this.drsBadge.classList.toggle('available', telemetry.drsAvailable && !telemetry.drsOpen);
-    this.drsNote.textContent = telemetry.drsOpen ? '65°' : telemetry.drsAvailable ? 'ARMED' : 'ZONE';
+    this.drsBadge.classList.toggle('hidden', !telemetry.drsEquipped);
+    this.drsNote.textContent = !telemetry.drsEquipped ? 'NO WING' : telemetry.drsOpen ? '65°' : telemetry.drsAvailable ? 'ARMED' : 'ZONE';
     this.limiterBadge.classList.toggle('hidden', !telemetry.pitLimiter);
 
     telemetry.tyres.forEach((tyre, i) => {

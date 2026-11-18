@@ -29,6 +29,10 @@ export class RaceRenderer {
   private ghostClock = 0;
   private ghostLapTime = Number.POSITIVE_INFINITY;
   private disposed = false;
+  private frameTime = 0;
+  private frameSamples = 0;
+  private qualityTimer = 0;
+  private qualityLow = false;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -45,12 +49,36 @@ export class RaceRenderer {
       alpha: false,
       stencil: false,
     });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.35));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = track.night ? 1.15 : 1.02;
+    this.renderer.toneMappingExposure = track.night ? 1.2 : 1.08;
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = THREE.PCFShadowMap;
+
+    // A tiny procedural sky/ground probe gives painted bodywork proper
+    // reflections without another copy of three.js or a large HDR download.
+    const pmrem = new THREE.PMREMGenerator(this.renderer);
+    const envCanvas = document.createElement('canvas');
+    envCanvas.width = 256;
+    envCanvas.height = 128;
+    const envCtx = envCanvas.getContext('2d');
+    if (envCtx) {
+      const grad = envCtx.createLinearGradient(0, 0, 0, 128);
+      grad.addColorStop(0, track.night ? '#07101f' : '#6d9bc5');
+      grad.addColorStop(0.45, track.night ? '#16243a' : '#d7e2ea');
+      grad.addColorStop(0.56, track.night ? '#2b2118' : '#8b8a80');
+      grad.addColorStop(1, track.night ? '#050607' : '#3a3d35');
+      envCtx.fillStyle = grad;
+      envCtx.fillRect(0, 0, 256, 128);
+    }
+    const envTex = new THREE.CanvasTexture(envCanvas);
+    envTex.mapping = THREE.EquirectangularReflectionMapping;
+    envTex.colorSpace = THREE.SRGBColorSpace;
+    this.scene.environment = pmrem.fromEquirectangular(envTex).texture;
+    this.scene.environmentIntensity = 0.5;
+    envTex.dispose();
+    pmrem.dispose();
 
     const environment = buildEnvironment(track);
     const fog = (environment.userData as { fog?: THREE.Fog }).fog;
@@ -63,9 +91,11 @@ export class RaceRenderer {
 
     this.rig = new CameraRig(window.innerWidth / Math.max(1, window.innerHeight));
 
-    // Player car first, then the AI field.
+    // Player car first, then the AI field. Only the player gets the 1.2M-
+    // triangle scanned model; cloning it ten times was the single biggest
+    // frame-time cost in a full grid. AI use the lightweight procedural body.
     this.visuals.push(new CarVisual(playerConfig, template));
-    for (const config of aiConfigs) this.visuals.push(new CarVisual(config, template));
+    for (const config of aiConfigs) this.visuals.push(new CarVisual(config, null, true));
     this.visuals.forEach((visual, i) => {
       visual.group.userData.index = i;
       if (i > 0) {
@@ -126,7 +156,28 @@ export class RaceRenderer {
       this.rig.update(dt, player.pos, player.heading, player.speed);
       this.rig.addShake(player.impactPulse * 0.5);
     }
+    this.adaptQuality(dt);
     this.render();
+  }
+
+  /** Drop render resolution after a sustained slow patch, then recover. */
+  private adaptQuality(dt: number): void {
+    this.frameTime += dt;
+    this.frameSamples++;
+    this.qualityTimer += dt;
+    if (this.qualityTimer < 2.2) return;
+    const avg = this.frameTime / Math.max(1, this.frameSamples);
+    this.qualityTimer = 0;
+    this.frameTime = 0;
+    this.frameSamples = 0;
+    const native = Math.min(window.devicePixelRatio || 1, 1.35);
+    if (avg > 0.024 && !this.qualityLow) {
+      this.qualityLow = true;
+      this.renderer.setPixelRatio(1);
+    } else if (avg < 0.0165 && this.qualityLow) {
+      this.qualityLow = false;
+      this.renderer.setPixelRatio(native);
+    }
   }
 
   render(): void {
@@ -144,7 +195,7 @@ export class RaceRenderer {
 
   createGhost(config: CarConfig, template: THREE.Group | null): void {
     this.removeGhost();
-    const ghost = new CarVisual(config, template);
+    const ghost = new CarVisual(config, null, true);
     ghost.group.traverse((o) => {
       const mesh = o as THREE.Mesh;
       if (!mesh.isMesh) return;

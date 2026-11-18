@@ -1,19 +1,23 @@
 # Apex GP 2026
 
-An open-wheel racing simulator built with TypeScript, Vite and Three.js. It runs in the browser and as a Windows desktop app.
+A racing simulator with open-wheel, GT and kart classes, built with TypeScript, Vite and Three.js. It runs in the browser and as a Windows desktop app.
 
 **Play:** https://mh-studioz.github.io/apex-gp-2026/
 
 ## What is in the game
 
-- **41 real circuits** generated from GeoJSON outlines, with elevation, banking, kerbs, run-off, grandstands, marshal posts and DRS zones.
-- **Three car formulas** with genuinely different physics:
+- **41 real circuits** generated from GeoJSON outlines, with elevation, banking, kerbs, run-off, tyre walls, sponsor boards, marshal posts, start lights, a painted grid, rubbered-in racing line, grandstands and DRS zones.
+- **Five car classes** with genuinely different physics and bodies:
   - **Apex Hybrid** — 798 kg turbo-hybrid, maximum downforce.
   - **Apex V10** — 760 kg high-revving V10, less aero, higher top speed.
   - **Apex Junior** — 620 kg entry formula, lower power and grip.
+  - **Apex GT** — 1,364 kg GT3-style coupe with closed cockpit, ABS-friendly braking and sequential gears.
+  - **Apex Kart** — 175 kg direct-drive kart, single gear, 115 km/h and no DRS or ERS.
 - **Garage:** team and driver identity, paint, five livery patterns, race number, visor tint, aero package, wing angles, brake bias, differential, suspension, ride height and starting compound. Everything persists locally.
 - **Race Weekend:** three-lap qualifying, live timing, a starting grid, a Feature Race, and the mandatory two-compound rule with a 30-second penalty if you do not stop.
-- **Quick Race** and **Time Trial** with persistent best-lap ghosts recorded at 20 Hz.
+- **Quick Race** and **Time Trial** with persistent best-lap ghosts recorded at 20 Hz. The whole AI grid races the selected class.
+- **Racecraft and contact:** pure-pursuit AI with braking-distance planning, traffic awareness, start-lane holding, off-track recovery and stuck-car resets; two-circle capsule hitboxes and a barrier at the visible edge of the run-off.
+- **Performance:** instanced scenery, merged car bodies, low-detail AI wheels, a resolution cap and adaptive pixel ratio keep a full grid smooth.
 - **Pit stops:** pit-box detection, pit-lane speed limiter, tyre change, wing and brake repairs.
 - **120 Hz fixed-step physics:** load-sensitive tyre grip, tyre temperatures and wear, fuel burn, DRS, ERS, brake bias, differential, suspension and banked corners.
 - **Driver aids:** traction control, ABS, stability control, automatic gearbox, racing line, difficulty presets, camera modes and full remapping-free keyboard controls.

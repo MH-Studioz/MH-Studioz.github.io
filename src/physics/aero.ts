@@ -1,4 +1,4 @@
-import type { AeroPackage, CarClass } from '../garage/carConfig';
+import { CAR_CLASSES, type AeroPackage, type CarClass } from '../garage/carConfig';
 
 export interface AeroSetup {
   aeroPackage: AeroPackage;
@@ -22,12 +22,6 @@ const PACKAGES: Record<AeroPackage, { cla: number; cda: number }> = {
   'high-downforce': { cla: 4.6, cda: 1.24 },
 };
 
-const CLASS_AERO: Record<CarClass, { cla: number; cda: number }> = {
-  hybrid: { cla: 1, cda: 1 },
-  v10: { cla: 0.82, cda: 0.93 },
-  junior: { cla: 0.78, cda: 0.86 },
-};
-
 export function computeAero(
   setup: AeroSetup,
   speed: number,
@@ -38,12 +32,19 @@ export function computeAero(
   out?: AeroState,
 ): AeroState {
   const pkg = PACKAGES[setup.aeroPackage] ?? PACKAGES.balanced;
-  const classAero = CLASS_AERO[setup.carClass] ?? CLASS_AERO.hybrid;
+  const classSpec = CAR_CLASSES[setup.carClass] ?? CAR_CLASSES.hybrid;
   const front = Math.max(0, Math.min(20, setup.frontWingAngle));
   const rear = Math.max(0, Math.min(25, setup.rearWingAngle));
   const ride = Math.max(30, Math.min(80, setup.rideHeight));
-  let cla = pkg.cla * classAero.cla * (0.72 + front * 0.0135 + rear * 0.0125) * (1.03 - (ride - 30) * 0.00075);
-  let cda = pkg.cda * classAero.cda * (0.78 + front * 0.006 + rear * 0.0072) + (ride - 30) * 0.0008;
+  const wingAuthority = classSpec.category === 'open-wheel' ? 1 : classSpec.category === 'gt' ? 0.42 : 0.06;
+  let cla =
+    pkg.cla *
+    classSpec.aero *
+    (0.72 + front * 0.0135 * wingAuthority + rear * 0.0125 * wingAuthority) *
+    (1.03 - (ride - 30) * 0.00075);
+  let cda =
+    pkg.cda * classSpec.drag * (0.78 + front * 0.006 * wingAuthority + rear * 0.0072 * wingAuthority) +
+    (ride - 30) * 0.0008;
 
   // Floor damage costs downforce and adds turbulence drag.
   cla *= 1 - Math.min(0.42, floorDamage * 0.42);

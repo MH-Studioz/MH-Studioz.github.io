@@ -51,6 +51,7 @@ export class MenuUI {
   private startButton = byId<HTMLButtonElement>('btn-start');
   private profile = byId('profile-strip');
   private count = byId('track-count');
+  private carClass: CarConfig['carClass'] = 'hybrid';
 
   constructor(
     catalog: TrackCatalog,
@@ -222,7 +223,7 @@ export class MenuUI {
       this.lapSetting.style.display = '';
       this.lapSlider.disabled = false;
       if (startSpan) startSpan.textContent = 'START RACE';
-      this.sessionMeta.textContent = 'Grid 10 · standing start · rolling DRS';
+      this.sessionMeta.textContent = `Grid 10 · ${CAR_CLASSES[this.carClass].label} · ${CAR_CLASSES[this.carClass].drs ? 'DRS enabled' : 'no DRS'}`;
       this.updateLapLabels();
     }
   }
@@ -239,7 +240,7 @@ export class MenuUI {
     this.sessionMeta.textContent =
       this.mode === 'weekend'
         ? `Qualifying + ${this.laps}-lap GP · 2-compound rule`
-        : `Grid 10 · ${this.laps} laps · standing start`;
+        : `Grid 10 · ${this.laps} laps · ${CAR_CLASSES[this.carClass].short}`;
   }
 
   openLibrary(): void {
@@ -258,6 +259,8 @@ export class MenuUI {
 
   refreshProfile(config: CarConfig): void {
     const livery: LiveryConfig = config.livery;
+    this.carClass = config.carClass;
+    this.setMode(this.mode);
     this.profile.innerHTML = `
       <span class="profile-swatch" style="background:${livery.primary}"></span>
       <div><strong>${escapeText(config.teamName).toUpperCase()}</strong><small>${escapeText(config.driverName)} · ${livery.tag} · ${CAR_CLASSES[config.carClass].short} · ${livery.aero.toUpperCase()}</small></div>

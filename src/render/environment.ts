@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createGravelTexture, createGrassTexture } from '../garage/liveryTextures';
 import type { TrackData } from '../tracks/types';
 
 function mulberry32(seed: number): () => number {
@@ -94,7 +95,7 @@ function makeCrowdTexture(): THREE.CanvasTexture {
 function addGrandstands(group: THREE.Group, track: TrackData, crowd: THREE.CanvasTexture): void {
   const mat = new THREE.MeshStandardMaterial({ map: crowd, roughness: 0.82, metalness: 0.03 });
   const frame = new THREE.MeshStandardMaterial({ color: '#7d838c', roughness: 0.6, metalness: 0.35 });
-  const us = [0.012, 0.05, 0.1, 0.9];
+  const us = [0.012, 0.05, 0.1, 0.3, 0.7, 0.9];
   us.forEach((u, index) => {
     const sample = track.samples[Math.round(u * track.samples.length) % track.samples.length];
     const side = index % 2 === 0 ? 1 : -1;
@@ -121,95 +122,150 @@ function addGrandstands(group: THREE.Group, track: TrackData, crowd: THREE.Canva
   });
 }
 
+function addInstanced(
+  group: THREE.Group,
+  geometry: THREE.BufferGeometry,
+  material: THREE.Material,
+  transforms: THREE.Matrix4[],
+  castShadow = false,
+): void {
+  if (transforms.length === 0) return;
+  const mesh = new THREE.InstancedMesh(geometry, material, transforms.length);
+  transforms.forEach((matrix, i) => mesh.setMatrixAt(i, matrix));
+  mesh.instanceMatrix.needsUpdate = true;
+  mesh.castShadow = castShadow;
+  mesh.receiveShadow = true;
+  group.add(mesh);
+}
+
 function addScenery(group: THREE.Group, track: TrackData, palette: Palette): void {
   const rng = mulberry32(seedFrom(track.id));
   const size = Math.max(track.bounds.maxX - track.bounds.minX, track.bounds.maxZ - track.bounds.minZ);
   const center = track.center;
   const samples = track.samples;
 
-  const distanceToTrack = (x: number, z: number): number => {
-    let best = Infinity;
-    for (let i = 0; i < samples.length; i += 4) {
-      const p = samples[i].pos;
-      const d = (p.x - x) * (p.x - x) + (p.z - z) * (p.z - z);
-      if (d < best) best = d;
-    }
-    return Math.sqrt(best);
-  };
-
   if (palette === 'urban') {
     const buildingMats = ['#3a4049', '#4c525c', '#2b3038', '#555c66'].map(
       (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.72, metalness: 0.18 }),
     );
-    for (let i = 0; i < 110; i++) {
+    const boxes = buildingMats.map(() => [] as THREE.Matrix4[]);
+    const lights: THREE.Matrix4[] = [];
+    const dummy = new THREE.Object3D();
+    for (let i = 0; i < 130; i++) {
       const angle = rng() * Math.PI * 2;
-      const radius = size * (0.62 + rng() * 0.95);
+      const radius = size * (0.58 + rng() * 0.95);
       const x = center.x + Math.cos(angle) * radius;
       const z = center.z + Math.sin(angle) * radius;
-      if (distanceToTrack(x, z) < 34) continue;
+      let closest = Infinity;
+      for (let k = 0; k < samples.length; k += 5) {
+        const p = samples[k].pos;
+        closest = Math.min(closest, Math.hypot(p.x - x, p.z - z));
+        if (closest < 32) break;
+      }
+      if (closest < 32) continue;
       const height = 12 + rng() * 55;
       const w = 8 + rng() * 16;
       const d = 8 + rng() * 16;
-      const b = new THREE.Mesh(new THREE.BoxGeometry(w, height, d), buildingMats[i % buildingMats.length]);
-      b.position.set(x, height / 2, z);
-      b.rotation.y = rng() * Math.PI;
-      group.add(b);
+      dummy.position.set(x, height / 2, z);
+      dummy.rotation.set(0, rng() * Math.PI, 0);
+      dummy.scale.set(w, height, d);
+      dummy.updateMatrix();
+      boxes[i % boxes.length].push(dummy.matrix.clone());
       if (track.night) {
-        const lights = new THREE.Mesh(
-          new THREE.BoxGeometry(w * 0.9, 0.15, 0.1),
-          new THREE.MeshBasicMaterial({ color: '#ffe6a3', toneMapped: false }),
-        );
-        lights.position.set(x, height * 0.55, z + d / 2);
-        group.add(lights);
+        dummy.position.set(x, height * 0.55, z + d / 2);
+        dummy.rotation.set(0, 0, 0);
+        dummy.scale.set(w * 0.9, 0.15, 0.1);
+        dummy.updateMatrix();
+        lights.push(dummy.matrix.clone());
       }
     }
+    boxes.forEach((transforms, i) => addInstanced(group, new THREE.BoxGeometry(1, 1, 1), buildingMats[i], transforms));
+    addInstanced(
+      group,
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial({ color: '#ffe6a3', toneMapped: false }),
+      lights,
+    );
     return;
   }
 
   if (palette === 'desert') {
     const rockMat = new THREE.MeshStandardMaterial({ color: '#8b7658', roughness: 1, flatShading: true });
-    for (let i = 0; i < 34; i++) {
+    const rocks: THREE.Matrix4[] = [];
+    const dummy = new THREE.Object3D();
+    for (let i = 0; i < 46; i++) {
       const angle = rng() * Math.PI * 2;
       const radius = size * (0.75 + rng() * 0.8);
       const h = 15 + rng() * 60;
-      const rock = new THREE.Mesh(new THREE.ConeGeometry(h * 0.9, h, 5 + Math.floor(rng() * 3)), rockMat);
-      rock.position.set(center.x + Math.cos(angle) * radius, h / 2 - 4, center.z + Math.sin(angle) * radius);
-      rock.rotation.y = rng() * Math.PI;
-      group.add(rock);
+      dummy.position.set(center.x + Math.cos(angle) * radius, h / 2 - 4, center.z + Math.sin(angle) * radius);
+      dummy.rotation.set(0, rng() * Math.PI, 0);
+      dummy.scale.set(h * 0.9, h, h * (0.9 + rng() * 0.3));
+      dummy.updateMatrix();
+      rocks.push(dummy.matrix.clone());
     }
+    addInstanced(group, new THREE.ConeGeometry(1, 1, 6), rockMat, rocks);
     return;
   }
 
-  // Trees, hills and a few marshal towers for park/forest circuits.
+  // Batched trees and bushes: hundreds of objects, only a handful of draws.
   const trunkMat = new THREE.MeshStandardMaterial({ color: '#4a3524', roughness: 0.95 });
   const leafMats = [
     new THREE.MeshStandardMaterial({ color: '#2b4a26', roughness: 0.95 }),
     new THREE.MeshStandardMaterial({ color: '#365b2c', roughness: 0.95 }),
     new THREE.MeshStandardMaterial({ color: '#1f3a20', roughness: 0.95 }),
   ];
-  for (let i = 0; i < 190; i++) {
-    const angle = rng() * Math.PI * 2;
-    const radius = size * (0.52 + rng() * 1.1);
-    const x = center.x + Math.cos(angle) * radius;
-    const z = center.z + Math.sin(angle) * radius;
-    if (distanceToTrack(x, z) < 24) continue;
-    const h = 4 + rng() * 7;
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.26, h * 0.5, 5), trunkMat);
-    trunk.position.set(x, h * 0.25, z);
-    group.add(trunk);
-    const crown = new THREE.Mesh(new THREE.ConeGeometry(h * 0.34, h, 6), leafMats[i % leafMats.length]);
-    crown.position.set(x, h * 0.72, z);
-    group.add(crown);
+  const trunks: THREE.Matrix4[] = [];
+  const crowns: THREE.Matrix4[][] = [[], [], []];
+  const bushes: THREE.Matrix4[] = [];
+  const hills: THREE.Matrix4[] = [];
+  const dummy = new THREE.Object3D();
+  const count = palette === 'forest' ? 320 : 240;
+  for (let i = 0; i < count; i++) {
+    const sample = samples[Math.floor(rng() * samples.length)];
+    const side = rng() < 0.5 ? -1 : 1;
+    const offset = 22 + rng() * 90;
+    const x = sample.pos.x + sample.right.x * side * offset;
+    const z = sample.pos.z + sample.right.z * side * offset;
+    if (Math.hypot(x - center.x, z - center.z) > size * 1.6) continue;
+    const h = 4 + rng() * 8;
+    const groundY = sample.pos.y * Math.max(0, 1 - (offset - 6) / 115) - 0.06;
+    dummy.position.set(x, groundY + h * 0.25, z);
+    dummy.rotation.set(0, rng() * Math.PI, 0);
+    dummy.scale.set(1, h * 0.5, 1);
+    dummy.updateMatrix();
+    trunks.push(dummy.matrix.clone());
+    dummy.position.set(x, groundY + h * 0.72, z);
+    dummy.scale.set(h * 0.55, h, h * 0.55);
+    dummy.updateMatrix();
+    crowns[i % 3].push(dummy.matrix.clone());
+    if (i % 5 === 0) {
+      dummy.position.set(x + (rng() - 0.5) * 8, groundY + 0.35, z + (rng() - 0.5) * 8);
+      dummy.rotation.set(0, rng() * Math.PI, 0);
+      dummy.scale.set(0.7 + rng() * 0.8, 0.45 + rng() * 0.5, 0.7 + rng() * 0.8);
+      dummy.updateMatrix();
+      bushes.push(dummy.matrix.clone());
+    }
   }
+  addInstanced(group, new THREE.CylinderGeometry(0.18, 0.26, 1, 5), trunkMat, trunks, true);
+  crowns.forEach((transforms, i) => addInstanced(group, new THREE.ConeGeometry(0.34, 1, 6), leafMats[i], transforms, true));
+  addInstanced(
+    group,
+    new THREE.SphereGeometry(1, 7, 5),
+    new THREE.MeshStandardMaterial({ color: '#31502b', roughness: 0.95 }),
+    bushes,
+  );
   const hillMat = new THREE.MeshStandardMaterial({ color: '#3d5237', roughness: 1, flatShading: true });
   for (let i = 0; i < 12; i++) {
     const angle = (i / 12) * Math.PI * 2 + rng() * 0.2;
     const radius = size * (1.2 + rng() * 0.5);
     const h = 55 + rng() * 90;
-    const hill = new THREE.Mesh(new THREE.ConeGeometry(h * 1.7, h, 7), hillMat);
-    hill.position.set(center.x + Math.cos(angle) * radius, h / 2 - 8, center.z + Math.sin(angle) * radius);
-    group.add(hill);
+    dummy.position.set(center.x + Math.cos(angle) * radius, h / 2 - 8, center.z + Math.sin(angle) * radius);
+    dummy.rotation.set(0, 0, 0);
+    dummy.scale.set(h * 1.7, h, h * 1.7);
+    dummy.updateMatrix();
+    hills.push(dummy.matrix.clone());
   }
+  addInstanced(group, new THREE.ConeGeometry(1, 1, 7), hillMat, hills);
 }
 
 function addFloodlights(group: THREE.Group, track: TrackData): THREE.Group {
@@ -285,6 +341,15 @@ export function buildEnvironment(track: TrackData): THREE.Group {
 
   const sun = new THREE.DirectionalLight(night ? '#a9c7ff' : '#fff3dc', night ? 0.9 : 2.4);
   sun.position.set(track.center.x + size * 0.5, Math.max(120, size * 0.7), track.center.z + size * 0.35);
+  if (!night) {
+    const sunDir = sun.position.clone().sub(track.center).normalize();
+    const disc = new THREE.Mesh(
+      new THREE.SphereGeometry(42, 20, 12),
+      new THREE.MeshBasicMaterial({ color: '#fff4cf', fog: false, toneMapped: false }),
+    );
+    disc.position.copy(track.center).addScaledVector(sunDir, 3000);
+    group.add(disc);
+  }
   sun.target.position.copy(track.center);
   sun.castShadow = !night;
   const shadowSize = Math.min(320, size * 0.9 + 120);
@@ -294,7 +359,7 @@ export function buildEnvironment(track: TrackData): THREE.Group {
   sun.shadow.camera.bottom = -shadowSize;
   sun.shadow.camera.near = 10;
   sun.shadow.camera.far = 900;
-  sun.shadow.mapSize.set(2048, 2048);
+  sun.shadow.mapSize.set(1536, 1536);
   sun.shadow.bias = -0.0006;
   group.add(sun);
   group.add(sun.target);
@@ -307,7 +372,10 @@ export function buildEnvironment(track: TrackData): THREE.Group {
   }
 
   // Ground.
+  const groundTex = palette === 'desert' ? createGravelTexture() : palette === 'urban' ? null : createGrassTexture();
+  if (groundTex) groundTex.repeat.set(palette === 'desert' ? 90 : 180, palette === 'desert' ? 90 : 180);
   const groundMat = new THREE.MeshStandardMaterial({
+    map: groundTex,
     color: GROUND_COLORS[palette],
     roughness: 0.98,
     metalness: 0.01,

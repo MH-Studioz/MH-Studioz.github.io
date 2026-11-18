@@ -1,10 +1,17 @@
 import * as THREE from 'three';
 import type { RacingLineMode } from '../physics/settings';
-import { inRangeWrap } from '../tracks/trackMath';
+import { inRangeWrap, TRACK_BARRIER_MARGIN } from '../tracks/trackMath';
 import type { TrackData, TrackSample } from '../tracks/types';
-import { createAsphaltTexture, createSignTexture } from '../garage/liveryTextures';
+import {
+  createAsphaltTexture,
+  createGravelTexture,
+  createGrassTexture,
+  createSignTexture,
+} from '../garage/liveryTextures';
 
 const ASPHALT_TEXTURE = createAsphaltTexture();
+const GRAVEL_TEXTURE = createGravelTexture();
+const GRASS_TEXTURE = createGrassTexture();
 
 function basisFor(sample: TrackSample): THREE.Matrix4 {
   return new THREE.Matrix4().makeBasis(sample.right, sample.up, sample.tangent);
@@ -106,7 +113,7 @@ function buildBarriers(track: TrackData): THREE.Mesh {
       const next = samples[(i + 1) % n];
       const inPit = inRangeWrap(s.u, track.pitEntryU, track.pitExitU);
       if (side > 0 && inPit) continue;
-      const offset = side * (s.width / 2 + 3.4);
+      const offset = side * (s.width / 2 + TRACK_BARRIER_MARGIN);
       const height = 1.15;
       const a = new THREE.Vector3().copy(s.pos).addScaledVector(s.right, offset);
       const b = new THREE.Vector3().copy(s.pos).addScaledVector(s.right, offset).addScaledVector(s.up, height);
@@ -227,6 +234,19 @@ function addStartGantry(group: THREE.Group, track: TrackData): void {
   sign.rotation.y = Math.PI;
   gantry.add(sign);
 
+  // Five start lights under the gantry beam.
+  const lightMat = new THREE.MeshStandardMaterial({
+    color: '#260000',
+    emissive: '#ff1200',
+    emissiveIntensity: 1.8,
+    roughness: 0.3,
+  });
+  for (let i = 0; i < 5; i++) {
+    const light = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 8), lightMat);
+    light.position.set((i - 2) * 0.72, 5.72, 0.14);
+    gantry.add(light);
+  }
+
   // Checkered start/finish strip.
   const check = document.createElement('canvas');
   check.width = 256;
@@ -328,6 +348,216 @@ function addPitEntryLines(group: THREE.Group, track: TrackData): void {
   }
 }
 
+function buildTerrain(track: TrackData): THREE.Mesh {
+  const samples = track.samples;
+  const n = samples.length;
+  const columns = [0, 12, 30, 65, 120];
+  const positions: number[] = [];
+  const colors: number[] = [];
+  const uvs: number[] = [];
+  const indices: number[] = [];
+  const color = new THREE.Color();
+  const rows = n + 1;
+  for (const side of [-1, 1]) {
+    const base = positions.length / 3;
+    for (let i = 0; i < rows; i++) {
+      const s = samples[i % n];
+      for (let c = 0; c < columns.length; c++) {
+        const lateral = side * (s.width / 2 + 3.05 + columns[c]);
+        const t = c / (columns.length - 1);
+        const noise =
+          Math.sin(i * 0.13 + c * 1.7) * 0.7 * t +
+          Math.sin(i * 0.031 + c * 3.1) * 1.8 * t;
+        const y = s.pos.y - 0.045 + (-0.02 - s.pos.y) * t + noise;
+        positions.push(
+          s.pos.x + s.right.x * lateral,
+          y,
+          s.pos.z + s.right.z * lateral,
+        );
+        uvs.push((i / n) * 18, t * 5);
+        const shade = 0.78 + Math.sin(i * 0.19 + c) * 0.07 + t * 0.04;
+        color.setRGB(0.42 * shade, 0.53 * shade, 0.28 * shade);
+        colors.push(color.r, color.g, color.b);
+        if (i < rows - 1 && c < columns.length - 1) {
+          const k = base + i * columns.length + c;
+          indices.push(k, k + 1, k + columns.length, k + columns.length, k + 1, k + columns.length + 1);
+        }
+      }
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  const mat = new THREE.MeshStandardMaterial({
+    map: GRASS_TEXTURE,
+    vertexColors: true,
+    roughness: 1,
+    metalness: 0,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.receiveShadow = true;
+  mesh.name = 'terrain';
+  return mesh;
+}
+
+function buildTireWalls(track: TrackData): THREE.Group {
+  const group = new THREE.Group();
+  const samples = track.samples;
+  const n = samples.length;
+  const geo = new THREE.CylinderGeometry(0.38, 0.43, 0.3, 10);
+  const mat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.94, metalness: 0.02 });
+  const matrices: THREE.Matrix4[] = [];
+  const colors: THREE.Color[] = [];
+  const dummy = new THREE.Object3D();
+  const black = new THREE.Color('#181a1d');
+  const red = new THREE.Color('#b31119');
+  const white = new THREE.Color('#e9e9e9');
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < n; i += 6) {
+      const s = samples[i];
+      if (side > 0 && inRangeWrap(s.u, track.pitEntryU, track.pitExitU)) continue;
+      const offset = side * (s.width / 2 + TRACK_BARRIER_MARGIN + 0.4);
+      const x = s.pos.x + s.right.x * offset;
+      const z = s.pos.z + s.right.z * offset;
+      const y = s.pos.y + offset * s.right.y;
+      for (let stack = 0; stack < 3; stack++) {
+        dummy.position.set(x, y + 0.16 + stack * 0.29, z);
+        dummy.rotation.set(0, (i / 6) * 0.37, 0);
+        dummy.scale.set(1, 1, 1);
+        dummy.updateMatrix();
+        matrices.push(dummy.matrix.clone());
+        const band = Math.floor(i / 6) % 9;
+        colors.push(stack === 2 && band < 2 ? (band === 0 ? red : white) : black);
+      }
+    }
+  }
+  const instanced = new THREE.InstancedMesh(geo, mat, matrices.length);
+  for (let i = 0; i < matrices.length; i++) {
+    instanced.setMatrixAt(i, matrices[i]);
+    instanced.setColorAt(i, colors[i]);
+  }
+  instanced.instanceMatrix.needsUpdate = true;
+  instanced.instanceColor!.needsUpdate = true;
+  instanced.castShadow = false;
+  instanced.receiveShadow = true;
+  group.add(instanced);
+  return group;
+}
+
+function buildMarshalPosts(track: TrackData): THREE.Group {
+  const group = new THREE.Group();
+  const postMat = new THREE.MeshStandardMaterial({ color: '#d9dde2', roughness: 0.55, metalness: 0.15 });
+  const hutMat = new THREE.MeshStandardMaterial({ color: '#2b3038', roughness: 0.7, metalness: 0.2 });
+  const flagMat = new THREE.MeshStandardMaterial({ color: '#ffb000', side: THREE.DoubleSide, roughness: 0.8 });
+  const corners = track.corners.filter((c) => c.radius < 200).slice(0, 8);
+  for (const corner of corners) {
+    const sample = track.samples[corner.index];
+    const side = corner.direction;
+    const post = new THREE.Group();
+    placeOnTrack(post, sample, side * (sample.width / 2 + 8.4), 0);
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.08, 4.2, 6), postMat);
+    mast.position.y = 2.1;
+    post.add(mast);
+    const hut = new THREE.Mesh(new THREE.BoxGeometry(1.35, 1.05, 1.1), hutMat);
+    hut.position.set(0, 0.55, 0.1);
+    post.add(hut);
+    const flag = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.72), flagMat);
+    flag.position.set(0.68, 3.55, 0.02);
+    flag.rotation.y = Math.PI / 2;
+    post.add(flag);
+    group.add(post);
+  }
+  return group;
+}
+
+function buildSponsorBoards(track: TrackData): THREE.Group {
+  const group = new THREE.Group();
+  const texts = ['APEX', 'GRID', 'PULSE', 'NITRO', 'VELOCITY', 'RACE'];
+  for (let i = 0; i < 12; i++) {
+    const sample = track.samples[Math.round(((i + 0.5) / 12) * track.samples.length) % track.samples.length];
+    const side = i % 2 === 0 ? 1 : -1;
+    const board = makeBoard(texts[i % texts.length], i % 3 === 0 ? '#e10600' : '#16202c', i % 3 === 0 ? '#ffffff' : '#8fe8ff');
+    board.scale.setScalar(1.35);
+    placeOnTrack(board, sample, side * (sample.width / 2 + TRACK_BARRIER_MARGIN + 1.8), 0);
+    group.add(board);
+  }
+  return group;
+}
+
+function buildRubberLine(track: TrackData): THREE.Mesh {
+  const samples = track.samples;
+  const n = samples.length;
+  const offsets = track.racingLine.offsets;
+  const positions: number[] = [];
+  const indices: number[] = [];
+  for (let i = 0; i < n; i++) {
+    const s = samples[i];
+    const next = samples[(i + 1) % n];
+    const width = 0.55;
+    const a = new THREE.Vector3().copy(s.pos).addScaledVector(s.right, offsets[i] - width).addScaledVector(s.up, 0.026);
+    const b = new THREE.Vector3().copy(s.pos).addScaledVector(s.right, offsets[i] + width).addScaledVector(s.up, 0.026);
+    const c = new THREE.Vector3().copy(next.pos).addScaledVector(next.right, offsets[(i + 1) % n] - width).addScaledVector(next.up, 0.026);
+    const d = new THREE.Vector3().copy(next.pos).addScaledVector(next.right, offsets[(i + 1) % n] + width).addScaledVector(next.up, 0.026);
+    positions.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z, b.x, b.y, b.z, d.x, d.y, d.z, c.x, c.y, c.z);
+    if (i < n - 1) {
+      const k = i * 6;
+      indices.push(k, k + 1, k + 2, k + 2, k + 3, k + 4);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  const mat = new THREE.MeshBasicMaterial({
+    color: '#111216',
+    transparent: true,
+    opacity: 0.28,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.renderOrder = 1;
+  return mesh;
+}
+
+function addStartGrid(group: THREE.Group, track: TrackData): void {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  ctx.clearRect(0, 0, 256, 512);
+  ctx.strokeStyle = 'rgba(245,245,245,0.85)';
+  ctx.lineWidth = 5;
+  for (let row = 0; row < 5; row++) {
+    for (const col of [0, 1]) {
+      const x = 32 + col * 110;
+      const y = 40 + row * 92;
+      ctx.strokeRect(x, y, 84, 58);
+      ctx.fillStyle = 'rgba(245,245,245,0.7)';
+      ctx.fillRect(x + 10, y + 44, 64, 4);
+    }
+  }
+  ctx.fillStyle = 'rgba(245,245,245,0.9)';
+  ctx.fillRect(16, 2, 224, 8);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const grid = new THREE.Mesh(
+    new THREE.PlaneGeometry(track.width * 0.92, 22),
+    new THREE.MeshBasicMaterial({ map: tex, transparent: true, opacity: 0.9, depthWrite: false }),
+  );
+  grid.rotation.x = -Math.PI / 2;
+  grid.position.set(0, 0.03, -10);
+  const sample = track.samples[Math.round(0.986 * track.samples.length) % track.samples.length];
+  const holder = new THREE.Group();
+  placeOnTrack(holder, sample, 0, 0);
+  holder.add(grid);
+  group.add(holder);
+}
+
 export function buildTrackGroup(track: TrackData): THREE.Group {
   const group = new THREE.Group();
   group.name = 'circuit';
@@ -340,14 +570,17 @@ export function buildTrackGroup(track: TrackData): THREE.Group {
   });
   group.add(buildRibbon(track, 0, track.width, 0.01, asphalt, 7));
 
-  // Run-off aprons.
+  // Run-off aprons. The physics barrier now sits at the outside edge of this
+  // gravel, so there is no invisible wall three metres inside the run-off.
   const runoffMat = new THREE.MeshStandardMaterial({
-    color: track.night ? '#2c2f35' : '#5a4630',
-    roughness: 0.98,
+    map: GRAVEL_TEXTURE,
+    color: track.night ? '#6b6d70' : '#c7bda9',
+    roughness: 0.99,
   });
   for (const side of [-1, 1]) {
-    group.add(buildRibbon(track, side * (track.width / 2 + 3.0), 6.0, -0.01, runoffMat, 18));
+    group.add(buildRibbon(track, side * (track.width / 2 + 3.15), 6.3, -0.005, runoffMat, 8));
   }
+  group.add(buildTerrain(track));
 
   const white = new THREE.MeshStandardMaterial({ color: '#efefef', roughness: 0.6 });
   for (const side of [-1, 1]) {
@@ -357,7 +590,12 @@ export function buildTrackGroup(track: TrackData): THREE.Group {
   group.add(buildKerbs(track));
   group.add(buildBarriers(track));
   group.add(buildPitLane(track));
+  group.add(buildTireWalls(track));
+  group.add(buildMarshalPosts(track));
+  group.add(buildSponsorBoards(track));
+  group.add(buildRubberLine(track));
   addStartGantry(group, track);
+  addStartGrid(group, track);
   addBrakingBoards(group, track);
   addDrsBoards(group, track);
   addOverpass(group, track);

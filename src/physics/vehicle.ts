@@ -7,6 +7,7 @@ import {
   nearestSampleIndex,
   sampleAtU,
   surfaceHeight,
+  TRACK_BARRIER_MARGIN,
   wrapU,
 } from '../tracks/trackMath';
 import { computeAero, type AeroState } from './aero';
@@ -23,16 +24,6 @@ import {
 } from './tyres';
 
 const GRAVITY = 9.81;
-const WHEELBASE = 3.6;
-const LF = 1.82;
-const LR = 1.78;
-const TRACK_WIDTH = 1.9;
-const CG_HEIGHT = 0.32;
-const YAW_INERTIA = 1180;
-const WHEEL_RADIUS = 0.36;
-const WHEEL_CIRCUMFERENCE = 2 * Math.PI * WHEEL_RADIUS;
-const FINAL_DRIVE = 5.2;
-const GEAR_RATIOS = [3.3, 2.65, 2.2, 1.85, 1.58, 1.36, 1.16, 0.98];
 const PIT_LIMIT = 80 / 3.6;
 
 export interface DriverInput {
@@ -58,6 +49,8 @@ export interface VehicleTelemetry {
   brake: number;
   drsOpen: boolean;
   drsAvailable: boolean;
+  drsEquipped: boolean;
+  ersEquipped: boolean;
   ers: number;
   fuel: number;
   lateral: number;
@@ -173,7 +166,7 @@ export class RaceCar {
     this.wheels = createTyreSet(config.livery.compound, this.ambient);
     this.pitCompound = config.livery.compound;
     this.stintCompounds = [config.livery.compound];
-    this.fuel = sim.fuel ? 100 : 45;
+    this.fuel = sim.fuel ? this.spec.fuelCapacity : this.spec.fuelCapacity * 0.45;
     this.placeAt(0.982, -2.2, 0);
   }
 
@@ -181,8 +174,34 @@ export class RaceCar {
     return Math.abs(this.vx) * 3.6;
   }
 
+  private get spec() {
+    return CAR_CLASSES[this.config.carClass];
+  }
+
   get mass(): number {
-    return CAR_CLASSES[this.config.carClass].mass + this.fuel * 0.745;
+    return this.spec.mass + this.fuel * this.spec.fuelDensity;
+  }
+
+  get collisionRadius(): number {
+    return this.spec.collisionRadius;
+  }
+
+  get collisionHalfLength(): number {
+    return this.spec.collisionHalfLength;
+  }
+
+  get carCategory() {
+    return this.spec.category;
+  }
+
+  /** Re-seat the car on the nearest sample after a contact resolution. */
+  refreshTrackPose(): void {
+    const sample = this.track.samples[nearestSampleIndex(this.track, this.pos.x, this.pos.z, this.index)];
+    this.index = sample.index;
+    this.u = sample.u;
+    this.lateral = lateralOffset(sample, this.pos.x, this.pos.z);
+    this.pos.y = surfaceHeight(sample, this.lateral);
+    this.offTrack = !this.inPitLane && Math.abs(this.lateral) > this.track.width / 2 + 0.35;
   }
 
   get sample(): TrackSample {
@@ -216,7 +235,10 @@ export class RaceCar {
     this.vx = speed;
     this.vy = 0;
     this.yawRate = 0;
-    this.gear = speed > 55 ? 5 : speed > 35 ? 4 : speed > 20 ? 3 : speed > 8 ? 2 : 1;
+    this.gear = Math.min(
+      this.spec.gearRatios.length,
+      speed > 55 ? 5 : speed > 35 ? 4 : speed > 20 ? 3 : speed > 8 ? 2 : 1,
+    );
     this.lateral = lateral;
     this.steerInput = 0;
     this.steerAngle = 0;
@@ -250,7 +272,7 @@ export class RaceCar {
 
   resetSession(compound: CompoundId = this.config.livery.compound): void {
     this.wheels = createTyreSet(compound, this.ambient);
-    this.fuel = this.sim.fuel ? 100 : 45;
+    this.fuel = this.sim.fuel ? this.spec.fuelCapacity : this.spec.fuelCapacity * 0.45;
     this.ers = 1;
     this.damage = { wingFL: 1, wingFR: 1, floor: 1, suspension: 0 };
     this.trackLimitStrikes = 0;
@@ -311,7 +333,7 @@ export class RaceCar {
       }
     }
 
-    const maxSteer = 0.36 / (1 + speedAbs * 0.075) + 0.025;
+    const maxSteer = (0.36 * this.spec.steerScale) / (1 + speedAbs * 0.075) + 0.025;
     const targetSteer = this.input.steer * maxSteer;
     this.steerAngle = approach(this.steerAngle, targetSteer, dt * 1.9);
     if (this.damage.suspension > 0.01) {
@@ -327,7 +349,7 @@ export class RaceCar {
     }
 
     // ------- aero / DRS ---------------------------------------------------
-    if (!this.drsAllowed || speedAbs < 62 || this.brake > 0.25) this.drsOpen = false;
+    if (!this.spec.drs || !this.drsAllowed || speedAbs < 62 || this.brake > 0.25) this.drsOpen = false;
     else this.drsOpen = true;
 
     const avgWing = (this.damage.wingFL + this.damage.wingFR) / 2;
@@ -357,10 +379,18 @@ export class RaceCar {
     const totalFz = mass * GRAVITY * normalFactor + this.aeroState.downforce;
     let fzF = totalFz * 0.46;
     let fzR = totalFz * 0.54;
-    const longTransfer = clamp((this.ax * mass * CG_HEIGHT) / WHEELBASE, -totalFz * 0.22, totalFz * 0.22);
+    const longTransfer = clamp(
+      (this.ax * mass * this.spec.cgHeight) / this.spec.wheelbase,
+      -totalFz * 0.22,
+      totalFz * 0.22,
+    );
     fzF -= longTransfer;
     fzR += longTransfer;
-    const latTransfer = clamp((this.ay * mass * CG_HEIGHT) / TRACK_WIDTH, -totalFz * 0.3, totalFz * 0.3);
+    const latTransfer = clamp(
+      (this.ay * mass * this.spec.cgHeight) / this.spec.trackWidth,
+      -totalFz * 0.3,
+      totalFz * 0.3,
+    );
     const stiffness = 0.8 + this.config.setup.suspensionStiffness * 0.0035;
 
     const loads = [
@@ -374,29 +404,36 @@ export class RaceCar {
 
     const kerbGrip = this.onKerb ? 0.94 : 1;
     const surfaceGrip = this.offTrack ? 0.63 : kerbGrip;
-    const mechGrip = (1 + (this.config.setup.suspensionStiffness - 50) * 0.00055) * CAR_CLASSES[this.config.carClass].grip;
+    const mechGrip = (1 + (this.config.setup.suspensionStiffness - 50) * 0.00055) * this.spec.grip;
     const wingPenalty = 1 - (1 - avgWing) * 0.3 * this.damageScale();
     const susPenalty = 1 - this.damage.suspension * 0.16 * this.damageScale();
     const muF = averageGrip(this.wheels, 0, 1) * surfaceGrip * mechGrip * wingPenalty * susPenalty;
     const muR = averageGrip(this.wheels, 2, 3) * surfaceGrip * mechGrip * susPenalty;
 
     const stableV = Math.max(2.5, speedAbs);
-    const alphaF = Math.atan2(this.vy + this.yawRate * LF, stableV) - this.steerAngle;
-    const alphaR = Math.atan2(this.vy - this.yawRate * LR, stableV);
+    const lf = this.spec.wheelbase * 0.505;
+    const lr = this.spec.wheelbase * 0.495;
+    const alphaF = Math.atan2(this.vy + this.yawRate * lf, stableV) - this.steerAngle;
+    const alphaR = Math.atan2(this.vy - this.yawRate * lr, stableV);
 
     let fyF = -pacejka(alphaF, muF, fzF);
     let fyR = -pacejka(alphaR, muR, fzR);
 
     // ------- engine, gearbox, ERS ----------------------------------------
-    const wheelRpm = (speedAbs / WHEEL_CIRCUMFERENCE) * 60;
-    const ratio = GEAR_RATIOS[this.gear - 1] * FINAL_DRIVE;
+    const spec = this.spec;
+    const gearCount = spec.gearRatios.length;
+    const wheelCircumference = 2 * Math.PI * spec.wheelRadius;
+    const wheelRpm = (speedAbs / wheelCircumference) * 60;
+    const ratio = spec.gearRatios[this.gear - 1] * spec.finalDrive;
     let rpmRaw = wheelRpm * ratio;
-    if (speedAbs < 2 && this.throttle > 0.05) rpmRaw = 5000;
-    this.rpm = clamp(Math.max(3600, rpmRaw), 3600, 13000);
+    if (speedAbs < 2 && this.throttle > 0.05) rpmRaw = Math.max(spec.idleRpm + 900, spec.maxRpm * 0.38);
+    this.rpm = clamp(Math.max(spec.idleRpm, rpmRaw), spec.idleRpm, spec.maxRpm);
 
+    const upshiftRpm = spec.maxRpm * 0.95;
+    const downshiftRpm = spec.maxRpm * 0.68;
     if (this.assists.gearbox === 'manual') {
       if (this.shiftCooldown <= 0) {
-        if (this.input.shiftUp && this.gear < 8) {
+        if (this.input.shiftUp && this.gear < gearCount) {
           this.gear++;
           this.shiftCooldown = 0.11;
         } else if (this.input.shiftDown && this.gear > 1) {
@@ -405,36 +442,37 @@ export class RaceCar {
         }
       }
       // Anti-stall safety downshift.
-      if (this.gear > 1 && rpmRaw < 4200 && this.shiftCooldown <= 0) {
+      if (this.gear > 1 && rpmRaw < spec.maxRpm * 0.32 && this.shiftCooldown <= 0) {
         this.gear--;
         this.shiftCooldown = 0.18;
       }
-    } else if (this.shiftCooldown <= 0) {
-      if (this.gear < 8 && rpmRaw > 12350) {
+    } else if (this.shiftCooldown <= 0 && gearCount > 1) {
+      if (this.gear < gearCount && rpmRaw > upshiftRpm) {
         this.gear++;
         this.shiftCooldown = 0.09;
-      } else if (this.gear > 1 && rpmRaw < 8900) {
+      } else if (this.gear > 1 && rpmRaw < downshiftRpm) {
         this.gear--;
         this.shiftCooldown = 0.09;
       }
     }
     if (speedAbs < 1.5) this.gear = 1;
 
-    const torque =
-      (330 + 105 * Math.exp(-Math.pow((this.rpm - 10600) / 2400, 2)) + 18 * (this.rpm / 13000)) *
-      CAR_CLASSES[this.config.carClass].power;
-    const limiter = this.rpm > 12850 ? 0.35 : 1;
-    const deploying = this.ers > 0.005 && this.throttle > 0.45 && speedAbs > 18;
+    const rpmNorm = clamp(this.rpm / spec.maxRpm, 0, 1.08);
+    const torque = spec.torquePeak * (0.74 + 0.26 * Math.exp(-Math.pow((rpmNorm - 0.78) / 0.2, 2)));
+    const limiter = this.rpm > spec.maxRpm * 0.988 ? 0.35 : 1;
+    const deploying = spec.ers && this.ers > 0.005 && this.throttle > 0.45 && speedAbs > 18;
     const ersPower = deploying ? 165000 : 0;
     if (deploying) this.ers = Math.max(0, this.ers - dt * 0.052);
-    else {
+    else if (spec.ers) {
       const recharge = this.brake > 0.15 ? 0.075 : 0.018;
       this.ers = Math.min(1, this.ers + dt * recharge);
+    } else {
+      this.ers = 1;
     }
 
-    const gearRatio = GEAR_RATIOS[this.gear - 1] * FINAL_DRIVE;
+    const gearRatio = spec.gearRatios[this.gear - 1] * spec.finalDrive;
     let driveForce =
-      (torque * gearRatio * 0.9) / WHEEL_RADIUS * this.throttle * limiter +
+      (torque * gearRatio * 0.9) / spec.wheelRadius * this.throttle * limiter +
       ersPower / Math.max(15, speedAbs);
 
     // Traction control / wheelspin.
@@ -455,7 +493,7 @@ export class RaceCar {
     }
 
     // ------- brakes with bias, ABS and lockups ---------------------------
-    const brakeRequest = this.brake * mass * 44;
+    const brakeRequest = this.brake * mass * spec.brakeDecel;
     const bias = this.config.setup.brakeBias / 100;
     const frontCircle = Math.hypot(muF * fzF, 1);
     const rearCircle2 = Math.hypot(muR * fzR, 1);
@@ -501,10 +539,10 @@ export class RaceCar {
 
     let ax = fx / mass + this.vy * this.yawRate;
     let ay = (fyF * cosD + fyR) / mass - this.vx * this.yawRate + bankAssist;
-    let yawAcc = (LF * fyF * cosD - LR * fyR) / YAW_INERTIA;
+    let yawAcc = (lf * fyF * cosD - lr * fyR) / spec.yawInertia;
 
     if (lowSpeed) {
-      const targetYaw = (this.vx * Math.tan(this.steerAngle)) / WHEELBASE;
+      const targetYaw = (this.vx * Math.tan(this.steerAngle)) / spec.wheelbase;
       this.yawRate = approach(this.yawRate, targetYaw, dt * 6);
       this.vy *= 0.82;
       ay = 0;
@@ -541,18 +579,18 @@ export class RaceCar {
     this.lateral = lateral;
     this.pos.y = surfaceHeight(sample, lateral);
 
-    this.offTrack = Math.abs(lateral) > this.track.width / 2 + 0.35;
+    this.offTrack = !this.inPitLane && Math.abs(lateral) > this.track.width / 2 + 0.35;
     this.onKerb = !this.offTrack && Math.abs(lateral) > this.track.width / 2 - 0.55 && sample.kerb;
 
-    const barrier = this.track.width / 2 + 3.35;
+    const barrier = this.track.width / 2 + TRACK_BARRIER_MARGIN;
     if (!this.inPitLane && lateral > barrier) {
       this.hitBarrier(lateral, sample, speedAbs);
-    } else if (lateral < -barrier) {
+    } else if (!this.inPitLane && lateral < -barrier) {
       this.hitBarrier(lateral, sample, speedAbs);
     }
 
     // Track limits: strict mode issues a 5 s penalty every third strike.
-    if (Math.abs(lateral) > this.track.width / 2 + 1.35 && speedAbs > 3) {
+    if (!this.inPitLane && Math.abs(lateral) > this.track.width / 2 + 1.35 && speedAbs > 3) {
       this.offTimer += dt;
       if (this.offTimer > 0.65 && this.limitCooldown <= 0) {
         this.trackLimitStrikes++;
@@ -612,7 +650,7 @@ export class RaceCar {
       const burn = (0.006 + this.throttle * 0.028 + (deployingSafe(this.ers) ? 0.004 : 0)) * dt;
       this.fuel = Math.max(0, this.fuel - burn);
     } else {
-      this.fuel = 45;
+      this.fuel = this.spec.fuelCapacity * 0.45;
     }
     if (this.sim.damage === 'full' && this.offTrack && speed > 25) {
       this.damage.floor = Math.max(0.2, this.damage.floor - dt * 0.002);
@@ -621,7 +659,7 @@ export class RaceCar {
   }
 
   private hitBarrier(lateral: number, sample: TrackSample, impactSpeed: number): void {
-    const barrier = this.track.width / 2 + 3.35;
+    const barrier = this.track.width / 2 + TRACK_BARRIER_MARGIN;
     const side = Math.sign(lateral) || 1;
     const limit = barrier - 0.7;
     this.pos.x = sample.pos.x + sample.right.x * side * limit;
@@ -633,9 +671,10 @@ export class RaceCar {
     this.lastImpactSpeed = impactSpeed;
     this.impactPulse = 1;
     const severity = clamp(impactSpeed / 70, 0.15, 1.4);
-    this.vx *= 0.45;
-    this.vy = -this.vy * 0.2;
-    this.yawRate *= 0.4;
+    // Slide along the barrier instead of stopping dead or jittering against it.
+    this.vx *= 0.9;
+    this.vy = -this.vy * 0.18 - side * Math.min(2.8, severity * 2.2);
+    this.yawRate *= 0.55;
     if (this.sim.damage === 'off') return;
     if (side > 0) this.damage.wingFR = Math.max(0, this.damage.wingFR - (0.28 + severity * 0.4));
     else this.damage.wingFL = Math.max(0, this.damage.wingFL - (0.28 + severity * 0.4));
@@ -649,7 +688,7 @@ export class RaceCar {
     this.damage.wingFR = 1;
     this.damage.floor = Math.min(1, this.damage.floor + 0.35);
     this.damage.suspension = Math.max(0, this.damage.suspension - 0.4);
-    if (this.sim.fuel) this.fuel = 100;
+    if (this.sim.fuel) this.fuel = this.spec.fuelCapacity;
     this.ers = 1;
     this.pitCount++;
     this.stintCompounds.push(this.pitCompound);
@@ -668,6 +707,8 @@ export class RaceCar {
       brake: this.brake,
       drsOpen: this.drsOpen,
       drsAvailable: this.drsAllowed,
+      drsEquipped: this.spec.drs,
+      ersEquipped: this.spec.ers,
       ers: this.ers,
       fuel: this.fuel,
       lateral: this.lateral,

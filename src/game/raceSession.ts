@@ -100,7 +100,7 @@ export class RaceSession {
   constructor(opts: RaceSessionOptions) {
     this.opts = opts;
     const aiCount = opts.mode === 'timetrial' ? 0 : 9;
-    const aiConfigs = TEAM_PRESETS.slice(0, aiCount).map(teamConfig);
+    const aiConfigs = TEAM_PRESETS.slice(0, aiCount).map((team) => teamConfig(team, opts.playerConfig.carClass));
     this.renderer = new RaceRenderer(opts.canvas, opts.track, opts.playerConfig, aiConfigs, opts.template);
 
     const hudCallbacks = {
@@ -171,7 +171,7 @@ export class RaceSession {
       const aiAssists = { brakingAssist: 'off' as const, abs: true, tractionControl: 'full' as const, racingLine: 'off' as const, gearbox: 'auto' as const };
       const aiSim = { ...opts.difficulty.sim, damage: 'off' as const };
       TEAM_PRESETS.slice(0, 9).forEach((team, i) => {
-        const config = teamConfig(team);
+        const config = teamConfig(team, opts.playerConfig.carClass);
         const pace = clamp(opts.difficulty.aiPace + [1.5, -1, 2.5, 0, -2, 3, -1.5, 1, -0.5][i], 50, 110);
         const car = new RaceCar(opts.track, config, aiAssists, aiSim);
         const ai = new AIDriver(car, team.tag, team.name, pace);
@@ -502,6 +502,7 @@ export class RaceSession {
     });
 
     this.resolveCarContacts();
+    this.recoverStuckAI(dt);
     this.racers.forEach((racer) => this.updateLapProgress(racer));
     this.updateStandings();
 
@@ -641,25 +642,91 @@ export class RaceSession {
   }
 
   private resolveCarContacts(): void {
+    // Two collision circles per car approximate its capsule. A single 3 m
+    // circle made clean side-by-side running impossible and caused the
+    // "hitbox glitch" whenever the field ran three abreast.
+    const circles = (car: RaceCar): Array<{ x: number; z: number; r: number }> => {
+      const fx = Math.sin(car.heading);
+      const fz = Math.cos(car.heading);
+      const half = car.collisionHalfLength;
+      const r = car.collisionRadius;
+      return [
+        { x: car.pos.x + fx * half, z: car.pos.z + fz * half, r },
+        { x: car.pos.x - fx * half, z: car.pos.z - fz * half, r },
+      ];
+    };
+
     for (let i = 0; i < this.racers.length; i++) {
       for (let j = i + 1; j < this.racers.length; j++) {
         const a = this.racers[i].car;
         const b = this.racers[j].car;
-        const dx = b.pos.x - a.pos.x;
-        const dz = b.pos.z - a.pos.z;
-        const dist = Math.hypot(dx, dz);
-        if (dist > 3.05 || dist < 0.0001) continue;
-        const push = (3.05 - dist) * 0.5;
-        const nx = dx / dist;
-        const nz = dz / dist;
-        a.pos.x -= nx * push;
-        a.pos.z -= nz * push;
-        b.pos.x += nx * push;
-        b.pos.z += nz * push;
-        a.vx *= 0.965;
-        b.vx *= 0.965;
-        a.impactPulse = Math.max(a.impactPulse, 0.22);
-        b.impactPulse = Math.max(b.impactPulse, 0.22);
+        const aCircles = circles(a);
+        const bCircles = circles(b);
+        let deepest = 0;
+        let normalX = 0;
+        let normalZ = 0;
+        for (const ca of aCircles) {
+          for (const cb of bCircles) {
+            const dx = cb.x - ca.x;
+            const dz = cb.z - ca.z;
+            const dist = Math.hypot(dx, dz);
+            const minDist = ca.r + cb.r;
+            const overlap = minDist - dist;
+            if (overlap <= deepest) continue;
+            deepest = overlap;
+            // Two cars can end up exactly coincident after a restart or a
+            // recovery. Use a deterministic track-lateral normal instead of
+            // dividing by zero and leaving the hitbox unresolved.
+            normalX = dist > 0.0001 ? dx / dist : a.sample.right.x;
+            normalZ = dist > 0.0001 ? dz / dist : a.sample.right.z;
+          }
+        }
+        if (deepest <= 0) continue;
+        // Apply a single correction from the deepest contact. Accumulating
+        // every circle pair produced a visible 4 m pop when cars overlapped.
+        const push = deepest * 0.52;
+        a.pos.x -= normalX * push;
+        a.pos.z -= normalZ * push;
+        b.pos.x += normalX * push;
+        b.pos.z += normalZ * push;
+        // Contact scrub, not a hard stop: preserve momentum so a light rub
+        // does not turn into a multi-frame jitter or a sudden spin.
+        const relativeSpeed = Math.abs(a.vx - b.vx) + Math.abs(a.vy - b.vy) * 0.5;
+        // Position correction does the real work. A heavy per-substep speed
+        // scrub made a tight start pack crawl at 0 km/h forever.
+        const scrub = 0.992 - Math.min(0.006, relativeSpeed / 500);
+        a.vx *= scrub;
+        b.vx *= scrub;
+        a.vy *= 0.985;
+        b.vy *= 0.985;
+        a.yawRate *= 0.985;
+        b.yawRate *= 0.985;
+        a.impactPulse = Math.max(a.impactPulse, Math.min(0.6, 0.1 + relativeSpeed / 90));
+        b.impactPulse = Math.max(b.impactPulse, Math.min(0.6, 0.1 + relativeSpeed / 90));
+      }
+    }
+    for (const racer of this.racers) racer.car.refreshTrackPose();
+  }
+
+  private aiStuck = new Map<RaceCar, number>();
+
+  private recoverStuckAI(dt: number): void {
+    for (const racer of this.racers) {
+      if (!racer.ai || racer.isPlayer || racer.finished) continue;
+      const car = racer.car;
+      if (car.servicing || car.speed > 2.2) {
+        this.aiStuck.delete(car);
+        continue;
+      }
+      const stuck = (this.aiStuck.get(car) ?? 0) + dt;
+      this.aiStuck.set(car, stuck);
+      if (stuck > 3.2) {
+        // A car beached in gravel or pinned against a barrier should rejoin,
+        // not sit at full throttle confusing the rest of the field. Use a
+        // staggered lane so two recovered cars never spawn inside each other.
+        const lane = (racer.gridSlot % 2 === 0 ? -1 : 1) * this.opts.track.width * 0.17;
+        car.placeAt(car.u, lane, 0);
+        this.aiStuck.delete(car);
       }
     }
   }
