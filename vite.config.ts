@@ -15,8 +15,8 @@ export default defineConfig({
       input: {
         // The existing racing game stays at the site root.
         main: fileURLToPath(new URL('./index.html', import.meta.url)),
-        // DEEP ATLAS is served as its own section: /deep-atlas/
-        deepAtlas: fileURLToPath(new URL('./deep-atlas/index.html', import.meta.url)),
+        // DEEP ATLAS lives under the games shelf: /games/deep-atlas/
+        deepAtlas: fileURLToPath(new URL('./games/deep-atlas/index.html', import.meta.url)),
       },
     },
   },

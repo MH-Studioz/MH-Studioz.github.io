@@ -18,5 +18,5 @@
     "forceConsistentCasingInFileNames": true,
     "types": ["vite/client"]
   },
-  "include": ["src", "deep-atlas/src"]
+  "include": ["src", "games/deep-atlas/src"]
 }

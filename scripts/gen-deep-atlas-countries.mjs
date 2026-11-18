@@ -225,7 +225,7 @@ for (const c of selected) {
 }
 
 rows.sort((a, b) => a.name.localeCompare(b.name));
-writeFileSync(new URL('../deep-atlas/data/countries.json', import.meta.url), JSON.stringify(rows, null, 0) + '\n');
+writeFileSync(new URL('../games/deep-atlas/data/countries.json', import.meta.url), JSON.stringify(rows, null, 0) + '\n');
 
 console.log(`countries: ${rows.length}`);
 console.log(`missing population: ${missingPop.length}${missingPop.length ? ' -> ' + missingPop.join(', ') : ''}`);
