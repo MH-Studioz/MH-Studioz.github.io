@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#05070b" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self' data: blob:; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; connect-src 'self' ws://127.0.0.1:* http://127.0.0.1:* ws://localhost:* http://localhost:*; font-src 'self' data:;"
+    />
+    <title>APEX GP — Open-Wheel Race Simulator</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2305070b'/%3E%3Cpath d='M12 46 32 16l20 30h-9L32 29 21 46z' fill='%23e10600'/%3E%3C/svg%3E" />
+  </head>
+  <body>
+    <div id="boot">
+      <div class="boot-mark"><span>APEX</span><small>GP 2026</small></div>
+      <div class="boot-bar"><i id="boot-bar-fill"></i></div>
+      <div id="boot-status">LOADING CIRCUIT DATA…</div>
+      <div class="boot-fine">SIMULATION BUILD 1.0 · 120 Hz PHYSICS</div>
+    </div>
+
+    <div id="app">
+      <canvas id="race-canvas"></canvas>
+
+      <!-- ================= MAIN MENU ================= -->
+      <section id="screen-menu" class="screen active">
+        <div class="menu-grid-lines"></div>
+        <div class="menu-slash"></div>
+        <header class="brand">
+          <div class="brand-mark"><span>APEX</span><small>GP 2026</small></div>
+          <div class="brand-sub">OPEN-WHEEL<br />RACE SIMULATOR</div>
+          <div class="brand-meta">
+            <span>40+ CIRCUITS</span>
+            <span>120 HZ PHYSICS</span>
+            <span id="menu-build">BUILD 1.0</span>
+          </div>
+        </header>
+
+        <div class="menu-layout">
+          <div class="menu-main">
+            <div class="section-label"><span>01</span> RACE MODE</div>
+            <div class="mode-grid" id="mode-grid">
+              <button class="mode-card active" data-mode="quick">
+                <span class="mode-num">A</span>
+                <strong>QUICK RACE</strong>
+                <small>Full grid · choose your laps</small>
+              </button>
+              <button class="mode-card" data-mode="timetrial">
+                <span class="mode-num">B</span>
+                <strong>TIME TRIAL</strong>
+                <small>Empty track · ghost car</small>
+              </button>
+              <button class="mode-card" data-mode="weekend">
+                <span class="mode-num">C</span>
+                <strong>RACE WEEKEND</strong>
+                <small>Qualifying + Feature Race</small>
+              </button>
+            </div>
+
+            <div class="section-label"><span>02</span> CIRCUIT</div>
+            <button class="track-hero" id="track-hero" type="button">
+              <div class="track-hero-map" id="hero-preview"></div>
+              <div class="track-hero-info">
+                <span class="eyebrow">SELECTED CIRCUIT</span>
+                <strong id="hero-name">—</strong>
+                <div class="track-hero-meta" id="hero-meta">Loading circuit library…</div>
+                <div class="track-hero-tags" id="hero-tags"></div>
+                <span class="track-hero-cta">CHANGE CIRCUIT <i>→</i></span>
+              </div>
+              <div class="track-hero-num" id="hero-num">01</div>
+            </button>
+
+            <div class="race-settings">
+              <div class="race-setting-block" id="lap-setting">
+                <div class="setting-head"><span>RACE DISTANCE</span><strong id="lap-value">10 LAPS</strong></div>
+                <input type="range" id="lap-slider" min="5" max="50" step="1" value="10" />
+                <div class="range-ticks"><span>5</span><span>25</span><span>50</span></div>
+              </div>
+              <div class="race-setting-block session-block">
+                <div class="setting-head"><span>SESSION</span><strong id="session-length">~ 19 MIN</strong></div>
+                <div class="session-meta" id="session-meta">Grid 10 · Standing start</div>
+              </div>
+              <button id="btn-start" class="btn-primary" type="button">
+                <span>START RACE</span>
+                <small>ENTER</small>
+              </button>
+            </div>
+          </div>
+
+          <aside class="menu-side">
+            <div class="panel difficulty-shell">
+              <div class="panel-heading">
+                <span class="eyebrow">RACE CONTROL</span>
+                <h2>DIFFICULTY &amp; ASSISTS</h2>
+              </div>
+              <div id="difficulty-panel"></div>
+            </div>
+            <button id="btn-garage" class="btn-ghost" type="button">
+              <span class="garage-icon">◈</span>
+              <span><strong>GARAGE</strong><small>Livery, aero &amp; setup studio</small></span>
+              <i>→</i>
+            </button>
+            <div class="profile-strip" id="profile-strip"></div>
+          </aside>
+        </div>
+
+        <footer class="menu-footer">
+          <span><b>DRIVE</b> WASD / ARROWS</span>
+          <span><b>DRS</b> AUTO IN ZONE</span>
+          <span><b>CAMERA</b> C</span>
+          <span><b>MFD</b> M</span>
+          <span><b>PAUSE</b> ESC</span>
+          <span class="footer-right">© 2026 APEX SIM · ORIGINAL RACING PROJECT</span>
+        </footer>
+      </section>
+
+      <!-- ================= GARAGE ================= -->
+      <section id="screen-garage" class="screen">
+        <header class="garage-top">
+          <button id="garage-back" class="btn-back" type="button">← BACK</button>
+          <div class="garage-title">
+            <span class="eyebrow">APEX PERFORMANCE CENTRE</span>
+            <h1>LIVERY STUDIO</h1>
+          </div>
+          <div class="garage-actions">
+            <button id="garage-reset" class="btn-ghost small" type="button">RESET</button>
+            <button id="garage-save" class="btn-primary small" type="button"><span>SAVE &amp; EXIT</span></button>
+          </div>
+        </header>
+        <div class="garage-layout">
+          <aside class="garage-controls" id="garage-controls"></aside>
+          <div class="garage-stage">
+            <canvas id="garage-canvas"></canvas>
+            <div class="garage-stage-overlay">
+              <div class="garage-watermark">APEX</div>
+              <div class="garage-live"><i></i> LIVE 3D PREVIEW</div>
+              <div class="garage-spec" id="garage-spec"></div>
+              <div class="garage-hint">DRAG TO ORBIT · SCROLL WHEEL NOT REQUIRED</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= HUD ================= -->
+      <div id="hud" class="hidden">
+        <div class="hud-top">
+          <div class="hud-session">
+            <span id="hud-mode">QUICK RACE</span>
+            <strong id="hud-track">MONZA</strong>
+            <small id="hud-weather">DRY · 27°C</small>
+          </div>
+          <div class="hud-center">
+            <div class="hud-lap"><span>LAP</span><strong id="hud-lap">1 / 10</strong></div>
+            <div class="hud-time" id="hud-time">0:00.000</div>
+            <div class="hud-delta" id="hud-delta">—</div>
+          </div>
+          <div class="hud-pos">
+            <span>POS</span><strong id="hud-pos">1</strong><small id="hud-field">/ 10</small>
+          </div>
+          <button id="hud-audio" class="hud-icon-btn" title="Mute audio" type="button">♪</button>
+          <button id="hud-menu" class="hud-icon-btn" title="Pause" type="button">II</button>
+        </div>
+
+        <div id="timing-tower" class="timing-tower"></div>
+
+        <div class="minimap-panel">
+          <div id="minimap" class="minimap"></div>
+          <div class="minimap-caption">
+            <span id="minimap-name">CIRCUIT</span>
+            <span id="minimap-len">0.000 KM</span>
+          </div>
+          <div class="minimap-legend"><i class="s1"></i><i class="s2"></i><i class="s3"></i><em>DRS</em></div>
+        </div>
+
+        <div id="start-lights" class="start-lights hidden">
+          <div class="lights-rail"><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="lights-label" id="lights-label">GET READY</div>
+        </div>
+
+        <div id="race-message" class="race-message hidden"></div>
+        <div id="toast-stack" class="toast-stack"></div>
+
+        <aside id="mfd" class="mfd hidden">
+          <header class="mfd-head"><span>MFD</span><small>CAR &amp; STRATEGY</small></header>
+          <div class="tyre-grid" id="mfd-tyres"></div>
+          <div class="mfd-columns">
+            <div class="mfd-card">
+              <h4>CAR DAMAGE</h4>
+              <svg class="damage-car" viewBox="0 0 120 200" aria-hidden="true">
+                <path class="damage-outline" d="M60 6c9 0 14 10 15 22l6 38 14 20v44l-10 18h-8l-5 40H48l-5-40h-8L25 130V86l14-20 6-38C46 16 51 6 60 6z" />
+                <rect id="dmg-wing-fl" x="18" y="150" width="20" height="7" rx="2" />
+                <rect id="dmg-wing-fr" x="82" y="150" width="20" height="7" rx="2" />
+                <path id="dmg-floor" d="M44 112h32v34H44z" />
+                <rect id="dmg-susp" x="24" y="130" width="8" height="22" rx="3" />
+                <rect id="dmg-susp2" x="88" y="130" width="8" height="22" rx="3" />
+                <text x="60" y="190" text-anchor="middle">TOP VIEW</text>
+              </svg>
+              <div class="damage-values">
+                <span>FL <b id="dmg-fl-val">100%</b></span><span>FR <b id="dmg-fr-val">100%</b></span>
+                <span>FLOOR <b id="dmg-floor-val">100%</b></span><span>SUSP <b id="dmg-susp-val">OK</b></span>
+              </div>
+            </div>
+            <div class="mfd-card">
+              <h4>PIT STRATEGY</h4>
+              <button id="pit-compound-btn" class="compound-cycle" type="button">
+                <i id="pit-compound-dot"></i><span id="pit-compound-name">MEDIUM</span><em>CHANGE</em>
+              </button>
+              <div class="pit-status" id="pit-status">PIT LANE OPEN · SPEED LIMIT 80 KM/H</div>
+              <div class="compound-legend" id="compound-legend"></div>
+              <div class="mfd-penalty" id="mfd-penalty"></div>
+            </div>
+          </div>
+          <div class="mfd-notes" id="mfd-notes"></div>
+        </aside>
+
+        <div class="telemetry" id="telemetry">
+          <div class="tel-speed"><span id="tel-speed">0</span><small>KM/H</small></div>
+          <div class="tel-gear"><span id="tel-gear">1</span><small>GEAR</small></div>
+          <div class="tel-rpm">
+            <div class="rpm-leds" id="rpm-leds"></div>
+            <div class="tel-bars">
+              <div class="tel-bar"><label>ERS</label><div class="bar-track"><i id="ers-fill"></i></div><span id="ers-val">100%</span></div>
+              <div class="tel-bar"><label>FUEL</label><div class="bar-track"><i id="fuel-fill"></i></div><span id="fuel-val">100L</span></div>
+            </div>
+          </div>
+          <div class="tel-tyres" id="tel-tyres"></div>
+          <div class="tel-flags">
+            <div id="drs-badge" class="badge drs">DRS</div>
+            <div id="limiter-badge" class="badge warn hidden">PIT LIMITER</div>
+            <div id="drs-note" class="drs-note">ZONE</div>
+          </div>
+        </div>
+        <div class="hud-help">M MFD · C CAMERA · ESC PAUSE</div>
+      </div>
+
+      <!-- ================= RESULTS ================= -->
+      <section id="screen-results" class="screen">
+        <div class="results-shell">
+          <div class="results-head">
+            <div>
+              <span class="eyebrow" id="results-eyebrow">RACE CLASSIFICATION</span>
+              <h1 id="results-title">FEATURE RACE</h1>
+              <p id="results-sub">Autodromo Nazionale Monza · 10 Laps</p>
+            </div>
+            <div class="results-hero-stat">
+              <span id="results-stat-label">RACE TIME</span>
+              <strong id="results-stat-value">0:00.000</strong>
+              <small id="results-stat-note">P1</small>
+            </div>
+          </div>
+          <div class="results-body">
+            <div class="results-table-wrap">
+              <table class="results-table" id="results-table"></table>
+            </div>
+            <div class="results-side" id="results-side"></div>
+          </div>
+          <div class="results-actions">
+            <button id="btn-race-again" class="btn-primary" type="button"><span>RACE AGAIN</span></button>
+            <button id="btn-results-menu" class="btn-ghost" type="button">BACK TO MENU</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= TRACK MODAL ================= -->
+      <div id="modal-tracks" class="modal hidden">
+        <div class="modal-panel tracks-panel">
+          <header class="modal-header">
+            <div>
+              <span class="eyebrow">CIRCUIT LIBRARY · <b id="track-count">40</b> VENUES</span>
+              <h2>SELECT A CIRCUIT</h2>
+            </div>
+            <button id="tracks-close" class="icon-btn" type="button">✕</button>
+          </header>
+          <div class="track-toolbar">
+            <input id="track-search" type="search" placeholder="Search circuit, city or country…" autocomplete="off" />
+            <div class="track-filter" id="track-filter">
+              <button class="active" data-filter="all" type="button">ALL</button>
+              <button data-filter="night" type="button">NIGHT</button>
+              <button data-filter="street" type="button">STREET</button>
+              <button data-filter="classic" type="button">CLASSIC</button>
+            </div>
+          </div>
+          <div class="track-grid" id="track-grid"></div>
+        </div>
+      </div>
+
+      <!-- ================= PAUSE ================= -->
+      <div id="screen-pause" class="modal hidden">
+        <div class="modal-panel pause-panel">
+          <span class="eyebrow">SESSION PAUSED</span>
+          <h2>RACE CONTROL</h2>
+          <div class="pause-session" id="pause-session">MONZA · LAP 1 / 10</div>
+          <div class="pause-actions">
+            <button id="pause-resume" class="btn-primary" type="button"><span>RESUME</span></button>
+            <button id="pause-restart" class="btn-ghost" type="button">RESTART SESSION</button>
+            <button id="pause-quit" class="btn-ghost danger" type="button">QUIT TO MENU</button>
+          </div>
+          <div class="pause-help">
+            <span><b>W / ↑</b> THROTTLE</span><span><b>S / ↓</b> BRAKE</span><span><b>A D</b> STEER</span>
+            <span><b>SPACE</b> HANDBRAKE / RESET</span><span><b>C</b> CAMERA</span><span><b>M</b> MFD</span>
+          </div>
+        </div>
+      </div>
+
+      <div id="fatal" class="fatal hidden"><strong>SIMULATOR ERROR</strong><p id="fatal-message"></p></div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
