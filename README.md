@@ -4,7 +4,7 @@ A racing simulator with open-wheel, GT, prototype, hypercar, stock and kart clas
 
 **Play:** https://mh-studioz.github.io/apex-gp-2026/
 
-**Beta v0.1:** browser build on GitHub Pages, plus Windows NSIS and portable EXE assets on the GitHub release.
+**Beta v0.2:** browser build on GitHub Pages, plus Windows NSIS and portable EXE assets on the GitHub release.
 
 ## What is in the game
 
