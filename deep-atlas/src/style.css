@@ -486,6 +486,7 @@ kbd {
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  min-height: 100dvh;
   max-width: 1380px;
   margin: 0 auto;
   padding: clamp(18px, 3vw, 40px) clamp(18px, 4vw, 56px) 20px;
@@ -1750,6 +1751,7 @@ kbd {
   min-width: 0;
   justify-self: center;
   max-height: min(86vh, 900px);
+  max-height: min(86dvh, 900px);
   display: flex;
   flex-direction: column;
   padding: 0;
@@ -3001,6 +3003,133 @@ kbd {
 
   .modal-panel {
     width: 100%;
+    max-height: 92vh;
+    max-height: 92dvh;
+  }
+
+  .summary {
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+  }
+
+  .summary .table-wrap {
+    border: 0;
+    overflow: visible;
+  }
+
+  .summary .sum-table {
+    min-width: 0;
+    border-collapse: separate;
+  }
+
+  .summary .sum-table thead {
+    display: none;
+  }
+
+  .summary .sum-table,
+  .summary .sum-table tbody,
+  .summary .sum-table tr,
+  .summary .sum-table td {
+    display: block;
+    width: auto;
+  }
+
+  .summary .sum-table tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .summary .sum-table tbody tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: rgba(6, 14, 28, 0.55);
+  }
+
+  .summary .sum-table td {
+    padding: 0;
+    border: 0;
+    font-size: 12px;
+  }
+
+  .summary .sum-table .col-i {
+    flex: 0 0 18px;
+    width: 18px;
+  }
+
+  .summary .sum-table .row-prompt {
+    flex: 1 1 auto;
+    font-size: 10.5px;
+    color: var(--muted);
+  }
+
+  .summary .sum-table .row-answer {
+    order: 3;
+    flex: 1 1 100%;
+    font-size: 12.5px;
+  }
+
+  .summary .sum-table td.num {
+    order: 4;
+    font-size: 10px;
+    text-align: left;
+  }
+
+  .summary .sum-table td.num::before,
+  .summary .sum-table .gem-cell::before {
+    font-family: var(--mono);
+    font-size: 8px;
+    letter-spacing: 0.12em;
+    color: var(--muted-dim);
+  }
+
+  .summary .sum-table td.num:nth-of-type(4)::before {
+    content: 'RARITY ';
+  }
+
+  .summary .sum-table td.num:nth-of-type(5)::before {
+    content: 'DEPTH ';
+  }
+
+  .summary .sum-table td.num:nth-of-type(5) {
+    margin-left: auto;
+  }
+
+  .summary .sum-table .gem-cell {
+    order: 5;
+    flex: 1 1 100%;
+    padding-top: 6px;
+    border-top: 1px dashed rgba(255, 255, 255, 0.08);
+    font-size: 10px;
+  }
+
+  .summary .sum-table .gem-cell::before {
+    content: 'RAREST ';
+  }
+
+  .club-table th,
+  .club-table td {
+    padding: 8px 5px;
+    font-size: 9.5px;
+  }
+
+  .club-table .col-i {
+    width: 20px;
+  }
+
+  .share-grid {
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .share-total {
+    display: block;
+    white-space: normal;
   }
 
   .party-code-big {

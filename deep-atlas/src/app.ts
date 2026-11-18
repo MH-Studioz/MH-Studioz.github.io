@@ -225,6 +225,8 @@ export class App {
   private club: Club | null = null;
   private party = new PartyClient();
   private partyPlayers: PartyPlayer[] = [];
+  /** Per-session id, so two tabs on one browser join as two divers. */
+  private partyId = '';
 
   constructor() {
     this.sound = new SoundEngine(this.readMuted());
@@ -869,6 +871,8 @@ export class App {
   private handlePartyLobby(lobby: PartyLobby | null): void {
     if (!lobby) {
       el('party-lobby').hidden = true;
+      el('party-strip').hidden = true;
+      this.partyPlayers = [];
       if (!el('modal-party').hidden) el('party-setup').hidden = false;
       return;
     }
@@ -890,7 +894,7 @@ export class App {
     list.innerHTML = lobby.players
       .map(
         (player) =>
-          `<li class="${player.id === this.identity.id ? 'you' : ''}"><span>${escapeHtml(player.name)}</span><em>${
+          `<li class="${player.id === this.partyId ? 'you' : ''}"><span>${escapeHtml(player.name)}</span><em>${
             player.id === lobby.hostId ? 'HOST' : 'DIVER'
           }</em></li>`
       )
@@ -911,6 +915,10 @@ export class App {
       el('party-lobby').hidden = true;
       el('party-setup').hidden = false;
     }
+    if (status === 'closed' || status === 'error') {
+      el('party-strip').hidden = true;
+      this.partyPlayers = [];
+    }
   }
 
   private setPartyStatus(message: string): void {
@@ -921,9 +929,16 @@ export class App {
     const name = this.identityName();
     this.setPartyStatus('OPENING PARTY…');
     await this.party.host(
-      { id: this.identity.id, name },
+      { id: this.partySessionId(), name },
       this.club ? { code: this.club.code, entries: this.club.entries } : null
     );
+  }
+
+  private partySessionId(): string {
+    if (!this.partyId) {
+      this.partyId = `${this.identity.id}-${Math.random().toString(36).slice(2, 6)}`;
+    }
+    return this.partyId;
   }
 
   private async joinParty(): Promise<void> {
@@ -935,7 +950,7 @@ export class App {
     }
     const name = this.identityName();
     this.setPartyStatus('CONNECTING…');
-    await this.party.join(code, { id: this.identity.id, name }, this.club?.code ?? '');
+    await this.party.join(code, { id: this.partySessionId(), name }, this.club?.code ?? '');
   }
 
   private identityName(): string {
@@ -962,13 +977,13 @@ export class App {
 
   private renderPartyStrip(): void {
     const ranked = [...this.partyPlayers].sort((a, b) => b.depth - a.depth || b.hits - a.hits);
-    const selfIndex = ranked.findIndex((player) => player.id === this.identity.id);
+    const selfIndex = ranked.findIndex((player) => player.id === this.partyId);
     const shown = ranked.slice(0, 4);
     if (selfIndex >= 4) shown.push(ranked[selfIndex]);
     el('party-strip-list').innerHTML = shown
       .map(
         (player) =>
-          `<li class="${player.id === this.identity.id ? 'you' : ''}"><span>${escapeHtml(player.name)}</span><b>${formatNumber(player.depth)}m</b><i>${player.done ? '✓' : ''}</i></li>`
+          `<li class="${player.id === this.partyId ? 'you' : ''}"><span>${escapeHtml(player.name)}</span><b>${formatNumber(player.depth)}m</b><i>${player.done ? '✓' : ''}</i></li>`
       )
       .join('');
   }
@@ -982,9 +997,9 @@ export class App {
     el('party-result-list').innerHTML = ranked
       .map(
         (player, index) =>
-          `<li class="${player.id === this.identity.id ? 'you' : ''}">
+          `<li class="${player.id === this.partyId ? 'you' : ''}">
             <span class="pr-rank">${String(index + 1).padStart(2, '0')}</span>
-            <span class="pr-name">${escapeHtml(player.name)}${player.id === this.identity.id ? ' <em>YOU</em>' : ''}</span>
+            <span class="pr-name">${escapeHtml(player.name)}${player.id === this.partyId ? ' <em>YOU</em>' : ''}</span>
             <span class="pr-state">${player.done ? 'DONE' : 'DIVING'}</span>
             <span class="pr-depth">${formatNumber(player.depth)} m</span>
           </li>`
@@ -995,6 +1010,7 @@ export class App {
   private leaveParty(): void {
     this.party.leave();
     this.partyPlayers = [];
+    this.partyId = '';
     el('modal-party').hidden = true;
     el('party-strip').hidden = true;
     this.toast('LEFT THE PARTY');
