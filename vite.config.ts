@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+import { fileURLToPath } from 'node:url';
 
 // Relative base keeps every asset path working on GitHub Pages project sites
 // and inside Electron's file/protocol loader.
@@ -10,6 +11,14 @@ export default defineConfig({
     assetsDir: 'assets',
     sourcemap: false,
     chunkSizeWarningLimit: 1600,
+    rollupOptions: {
+      input: {
+        // The existing racing game stays at the site root.
+        main: fileURLToPath(new URL('./index.html', import.meta.url)),
+        // DEEP ATLAS is served as its own section: /deep-atlas/
+        deepAtlas: fileURLToPath(new URL('./deep-atlas/index.html', import.meta.url)),
+      },
+    },
   },
   server: {
     host: '127.0.0.1',

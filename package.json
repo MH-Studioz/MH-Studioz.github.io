@@ -1,9 +1,9 @@
 {
-  "name": "apex-gp-2026",
+  "name": "gp-2026",
   "private": true,
   "version": "1.0.0",
-  "description": "Apex GP 2026 - open-wheel racing simulator",
-  "author": "Apex Sim",
+  "description": "GP 2026 - open-wheel, GT and kart racing simulator",
+  "author": "GP 2026",
   "license": "MIT",
   "main": "electron/main.cjs",
   "type": "module",
@@ -19,22 +19,27 @@
     "desktop:build": "npm run build && electron-builder --win --x64"
   },
   "dependencies": {
+    "leaflet": "^1.9.4",
+    "peerjs": "^1.5.5",
     "three": "^0.170.0"
   },
   "devDependencies": {
+    "@types/leaflet": "^1.9.22",
     "@types/three": "^0.170.0",
     "concurrently": "^9.1.0",
+    "country-json": "^2.3.0",
     "cross-env": "^7.0.3",
     "electron": "^33.2.1",
     "electron-builder": "^25.1.8",
     "typescript": "^5.6.3",
     "vite": "^5.4.11",
-    "wait-on": "^8.0.1"
+    "wait-on": "^8.0.1",
+    "world-countries": "^5.1.0"
   },
   "build": {
-    "appId": "com.apexsim.gp2026",
-    "productName": "Apex GP 2026",
-    "copyright": "Copyright © 2026 Apex Sim",
+    "appId": "com.gp2026.sim",
+    "productName": "GP 2026",
+    "copyright": "Copyright © 2026 GP 2026",
     "directories": {
       "output": "release"
     },
@@ -48,14 +53,18 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "portable",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
-      "artifactName": "ApexGP-2026-${version}-setup.${ext}"
+      "artifactName": "GP2026-${version}-setup.${ext}"
     },
     "nsis": {
       "oneClick": false,
@@ -63,10 +72,10 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Apex GP 2026"
+      "shortcutName": "GP 2026"
     },
     "portable": {
-      "artifactName": "ApexGP-2026-${version}-portable.${ext}"
+      "artifactName": "GP2026-${version}-portable.${ext}"
     }
   }
 }
