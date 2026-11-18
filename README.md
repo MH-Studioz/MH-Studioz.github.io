@@ -1,6 +1,6 @@
 # GP 2026
 
-A racing simulator with open-wheel, GT, prototype and kart classes, built with TypeScript, Vite and Three.js. It runs in the browser and as a Windows desktop app.
+A racing simulator with open-wheel, GT, prototype, hypercar, stock and kart classes plus two gravel rally stages, built with TypeScript, Vite and Three.js. It runs in the browser and as a Windows desktop app.
 
 **Play:** https://mh-studioz.github.io/apex-gp-2026/
 
@@ -8,13 +8,15 @@ A racing simulator with open-wheel, GT, prototype and kart classes, built with T
 
 ## What is in the game
 
-- **41 real circuits** generated from GeoJSON outlines, with elevation, banking, kerbs, run-off, tyre walls, sponsor boards, marshal posts, start lights, a painted grid, rubbered-in racing line, grandstands and DRS zones.
-- **Six car classes** with genuinely different physics and bodies:
+- **41 real circuits plus two gravel rally stages** generated from GeoJSON outlines, with elevation, banking, kerbs, run-off, tyre walls, sponsor boards, marshal posts, camera cranes, flag poles, paddock awnings, start lights, a painted grid, rubbered-in racing line, grandstands and DRS zones.
+- **Eight car models** with genuinely different physics and bodies:
   - **GP Hybrid** — 798 kg turbo-hybrid, maximum downforce.
   - **GP V10** — 760 kg high-revving V10, less aero, higher top speed.
   - **GP Junior** — 620 kg entry formula, lower power and grip.
   - **GP GT** — 1,364 kg GT3-style coupe with closed cockpit, ABS-friendly braking and sequential gears.
   - **GP Prototype** — 1,030 kg closed-cockpit hybrid endurance prototype with high-downforce bodywork and ERS.
+  - **GP Hypercar** — 1,450 kg road-based hybrid hypercar with active aero, wide bodywork and ERS.
+  - **GP Stock** — 1,550 kg full-size stock car with a big rear wing, four-speed gearbox and mechanical grip.
   - **GP Kart** — 175 kg direct-drive kart, single gear, 115 km/h and no DRS or ERS.
 - **Driver Hub:** four routes — Race, Car, Time Trial and Multiplayer — with a local driver profile or guest identity and a live car showcase on the home screen.
 - **Car studio:** team and driver identity, paint, five livery patterns, race number, visor tint, aero package, wing angles, brake bias, differential, suspension, ride height and starting compound. The default livery is black and blue, and everything persists locally.
@@ -24,8 +26,9 @@ A racing simulator with open-wheel, GT, prototype and kart classes, built with T
 - **Racecraft and contact:** pure-pursuit AI with braking-distance planning, traffic awareness, staggered start-lane holding, off-track recovery and stuck-car resets; two-circle capsule hitboxes, bodywork-aware barrier contact and a barrier at the visible edge of the run-off.
 - **Standing starts:** five gantry lamps illuminate in sequence, hold red for an unpredictable beat, then go out together; the race clock starts on lights out. The painted grid uses wider staggered boxes for ten cars.
 - **Performance:** instanced scenery, merged car bodies, low-detail AI wheels, a resolution cap and adaptive pixel ratio keep a full grid smooth.
-- **Pit stops:** pit-box detection, pit-lane speed limiter, tyre change, wing and brake repairs.
-- **120 Hz fixed-step physics:** load-sensitive tyre grip, tyre temperatures and wear, fuel burn, DRS, ERS, brake bias, differential, suspension and banked corners.
+- **Pit stops:** Monza’s pit entry, exit and box are explicitly calibrated; pit-lane ribbons stay outside the racing surface, with pit-box detection, speed limiter, tyre changes, wing and brake repairs.
+- **Weather:** wet sessions switch the field to wet tyres, add rain, diminish slick grip, lower AI pace and cool the tyres.
+- **120 Hz fixed-step physics:** load-sensitive tyre grip, wet and gravel surface grip, tyre temperatures and wear, fuel burn, DRS, ERS, brake bias, differential, suspension and banked corners.
 - **Driver aids:** traction control, ABS, stability control, automatic gearbox, racing line, difficulty presets, camera modes and full remapping-free keyboard controls.
 - **Synthesised audio** for engine, tyres, wind and kerbs.
 - **Electron packaging** for Windows (NSIS installer and portable EXE).
@@ -72,7 +75,7 @@ npm run desktop:build
 
 `desktop:build` writes the NSIS installer and a portable `.exe` to `release/`.
 
-The current beta release is tagged `v0.1.0-beta.1` and publishes `GP2026-0.1.0-beta.1-setup.exe` and `GP2026-0.1.0-beta.1-portable.exe` alongside the Pages deployment.
+The current beta release is tagged `v0.1.0-beta.2` and publishes `GP2026-0.1.0-beta.2-setup.exe` and `GP2026-0.1.0-beta.2-portable.exe` alongside the Pages deployment.
 
 ## Deployment
 

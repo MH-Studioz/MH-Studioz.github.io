@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import type { RacingLineMode } from '../physics/settings';
 import { inRangeWrap, TRACK_BARRIER_MARGIN } from '../tracks/trackMath';
 import type { TrackData, TrackSample } from '../tracks/types';
@@ -112,7 +113,7 @@ function buildBarriers(track: TrackData): THREE.Mesh {
       const s = samples[i];
       const next = samples[(i + 1) % n];
       const inPit = inRangeWrap(s.u, track.pitEntryU, track.pitExitU);
-      if (side > 0 && inPit) continue;
+      if (track.pitLane.length > 1 && side > 0 && inPit) continue;
       const offset = side * (s.width / 2 + TRACK_BARRIER_MARGIN);
       const height = 1.15;
       const a = new THREE.Vector3().copy(s.pos).addScaledVector(s.right, offset);
@@ -225,23 +226,24 @@ function addStartGantry(group: THREE.Group, track: TrackData): void {
     post.position.set(side * span * 0.5, 3.1, 0);
     gantry.add(post);
   }
-  const signTex = createSignTexture('GP\n2026', '#080a0f', '#ffffff');
-  const sign = new THREE.Mesh(
-    new THREE.PlaneGeometry(4.8, 4.8),
-    new THREE.MeshBasicMaterial({ map: signTex, toneMapped: false, side: THREE.DoubleSide }),
-  );
-  sign.position.set(0, 4.9, -0.32);
-  sign.rotation.y = Math.PI;
-  gantry.add(sign);
-
+  // A conventional five-lamp race-light bridge. The old oversized GP 2026
+  // sign sat directly in the driver's eyeline and made the start feel like a
+  // menu card rather than a race starter.
   const lightHousing = new THREE.Mesh(
-    new THREE.BoxGeometry(4.45, 0.86, 0.18),
-    new THREE.MeshStandardMaterial({ color: '#080a0d', roughness: 0.62, metalness: 0.25 }),
+    new THREE.BoxGeometry(5.1, 0.82, 0.28),
+    new THREE.MeshStandardMaterial({ color: '#080a0d', roughness: 0.62, metalness: 0.3 }),
   );
-  lightHousing.position.set(0, 5.72, -0.04);
+  lightHousing.position.set(0, 5.74, -0.08);
   gantry.add(lightHousing);
+  const lip = new THREE.Mesh(
+    new THREE.BoxGeometry(5.3, 0.08, 0.55),
+    new THREE.MeshStandardMaterial({ color: '#20252c', roughness: 0.4, metalness: 0.55 }),
+  );
+  lip.position.set(0, 6.18, -0.08);
+  gantry.add(lip);
 
-  // Five start lights under the gantry beam.
+  // Five start lights under the gantry beam, with dark bezels so the red
+  // lamps read as race lights instead of glowing dots on a billboard.
   const lightMat = new THREE.MeshStandardMaterial({
     color: '#260000',
     emissive: '#ff1200',
@@ -249,9 +251,16 @@ function addStartGantry(group: THREE.Group, track: TrackData): void {
     roughness: 0.3,
   });
   for (let i = 0; i < 5; i++) {
+    const bezel = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.31, 0.31, 0.14, 16),
+      new THREE.MeshStandardMaterial({ color: '#181b20', roughness: 0.35, metalness: 0.5 }),
+    );
+    bezel.rotation.x = Math.PI / 2;
+    bezel.position.set((i - 2) * 0.82, 5.74, 0.12);
+    gantry.add(bezel);
     const light = new THREE.Mesh(new THREE.SphereGeometry(0.24, 14, 10), lightMat.clone());
     light.name = `start-light-${i}`;
-    light.position.set((i - 2) * 0.72, 5.72, 0.1);
+    light.position.set((i - 2) * 0.82, 5.74, 0.2);
     gantry.add(light);
   }
 
@@ -344,6 +353,7 @@ function addOverpass(group: THREE.Group, track: TrackData): void {
 }
 
 function addPitEntryLines(group: THREE.Group, track: TrackData): void {
+  if (track.pitLane.length < 2) return;
   const mat = new THREE.MeshBasicMaterial({ color: '#f2f2f2', transparent: true, opacity: 0.75 });
   for (const u of [track.pitEntryU, track.pitExitU]) {
     const sample = track.samples[Math.round(u * track.samples.length) % track.samples.length];
@@ -353,6 +363,141 @@ function addPitEntryLines(group: THREE.Group, track: TrackData): void {
     placeOnTrack(holder, sample, 0, 0);
     holder.add(line);
     group.add(holder);
+  }
+}
+
+/** Trackside furniture that makes a circuit read as a real venue, not a ribbon. */
+function addTracksideDecor(group: THREE.Group, track: TrackData): void {
+  const samples = track.samples;
+  const n = samples.length;
+  const poleMat = new THREE.MeshStandardMaterial({ color: '#59616b', roughness: 0.5, metalness: 0.55 });
+  const cameraMat = new THREE.MeshStandardMaterial({ color: '#171b21', roughness: 0.55, metalness: 0.45 });
+  const flagMats = ['#e10600', '#f5f5f5', '#2f7dff', '#ffd400'].map(
+    (color) => new THREE.MeshStandardMaterial({ color, roughness: 0.8, side: THREE.DoubleSide }),
+  );
+
+  // Flag poles at regular marshal points.
+  for (let i = 0; i < 14; i++) {
+    const sample = samples[Math.round(((i + 0.45) / 14) * n) % n];
+    const side = i % 2 === 0 ? 1 : -1;
+    const flag = new THREE.Group();
+    placeOnTrack(flag, sample, side * (sample.width / 2 + 8.2), 0);
+    const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.06, 5.2, 6), poleMat);
+    mast.position.y = 2.6;
+    flag.add(mast);
+    const cloth = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 0.78), flagMats[i % flagMats.length]);
+    cloth.position.set(0.7, 4.8, 0.02);
+    cloth.rotation.y = Math.PI / 2;
+    flag.add(cloth);
+    group.add(flag);
+  }
+
+  // Broadcast camera cranes overlooking the main corners.
+  for (const [index, u] of [0.12, 0.34, 0.58, 0.82].entries()) {
+    const sample = samples[Math.round(u * n) % n];
+    const side = index % 2 === 0 ? 1 : -1;
+    const crane = new THREE.Group();
+    placeOnTrack(crane, sample, side * (sample.width / 2 + 13), 0);
+    const tower = new THREE.Mesh(new THREE.BoxGeometry(0.35, 8.5, 0.35), poleMat);
+    tower.position.y = 4.25;
+    crane.add(tower);
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.22, 4.2), poleMat);
+    arm.position.set(0, 8.1, -1.2);
+    crane.add(arm);
+    const camera = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.42, 0.42), cameraMat);
+    camera.position.set(0, 7.95, -3.1);
+    crane.add(camera);
+    group.add(crane);
+  }
+
+  // Team awnings / paddock tents around the start and the middle of the lap.
+  for (const [index, u] of [0.985, 0.31, 0.73].entries()) {
+    const sample = samples[Math.round(u * n) % n];
+    const side = index === 0 ? 1 : -1;
+    const awning = new THREE.Group();
+    placeOnTrack(awning, sample, side * (sample.width / 2 + 17), 0);
+    const base = new THREE.Mesh(
+      new THREE.BoxGeometry(10, 2.4, 14),
+      new THREE.MeshStandardMaterial({ color: '#d4d8dc', roughness: 0.7, metalness: 0.1 }),
+    );
+    base.position.y = 1.2;
+    awning.add(base);
+    const roof = new THREE.Mesh(
+      new THREE.BoxGeometry(10.8, 0.24, 14.8),
+      new THREE.MeshStandardMaterial({ color: index === 0 ? '#e10600' : '#2f7dff', roughness: 0.5, metalness: 0.2 }),
+    );
+    roof.position.y = 2.55;
+    awning.add(roof);
+    group.add(awning);
+  }
+
+  // Small reflective marker posts keep the edge readable at speed and at night.
+  const markerGeo = new THREE.BoxGeometry(0.16, 0.8, 0.16);
+  const markerMat = new THREE.MeshStandardMaterial({ color: '#f4f4f4', emissive: '#4b5157', emissiveIntensity: 0.18 });
+  const markerCount = 72;
+  const markers = new THREE.InstancedMesh(markerGeo, markerMat, markerCount);
+  const dummy = new THREE.Object3D();
+  for (let i = 0; i < markerCount; i++) {
+    const sample = samples[Math.round((i / markerCount) * n) % n];
+    const side = i % 2 === 0 ? 1 : -1;
+    const p = new THREE.Vector3().copy(sample.pos).addScaledVector(sample.right, side * (sample.width / 2 + 6.7));
+    dummy.position.set(p.x, p.y + 0.4, p.z);
+    dummy.rotation.set(0, Math.atan2(sample.tangent.x, sample.tangent.z), 0);
+    dummy.updateMatrix();
+    markers.setMatrixAt(i, dummy.matrix);
+  }
+  markers.instanceMatrix.needsUpdate = true;
+  group.add(markers);
+}
+
+/** Straw bales, stage boards and service tents turn the gravel loops into rallies. */
+function addRallyDecor(group: THREE.Group, track: TrackData): void {
+  const samples = track.samples;
+  const n = samples.length;
+  const hayMat = new THREE.MeshStandardMaterial({ color: '#c8a55b', roughness: 1 });
+  const hay = new THREE.InstancedMesh(new RoundedBoxGeometry(1.3, 0.78, 0.82, 2, 0.08), hayMat, 80);
+  const dummy = new THREE.Object3D();
+  for (let i = 0; i < 80; i++) {
+    const sample = samples[Math.round((i / 80) * n) % n];
+    const side = i % 2 === 0 ? 1 : -1;
+    const p = new THREE.Vector3().copy(sample.pos).addScaledVector(sample.right, side * (sample.width / 2 + 7.3));
+    dummy.position.set(p.x, p.y + 0.38, p.z);
+    dummy.rotation.set(0, Math.atan2(sample.tangent.x, sample.tangent.z), 0);
+    dummy.updateMatrix();
+    hay.setMatrixAt(i, dummy.matrix);
+  }
+  hay.instanceMatrix.needsUpdate = true;
+  group.add(hay);
+
+  const boardText = ['STAGE', 'CAUTION', 'GRAVEL', 'JUMP', 'SERVICE'];
+  for (let i = 0; i < 10; i++) {
+    const sample = samples[Math.round(((i + 0.5) / 10) * n) % n];
+    const side = i % 2 === 0 ? 1 : -1;
+    const board = makeBoard(boardText[i % boardText.length], i % 3 === 0 ? '#e10600' : '#1e2a35', '#ffffff');
+    board.scale.setScalar(1.15);
+    placeOnTrack(board, sample, side * (sample.width / 2 + 10.5), 0);
+    group.add(board);
+  }
+
+  for (let i = 0; i < 5; i++) {
+    const sample = samples[Math.round(((i + 0.25) / 5) * n) % n];
+    const side = i % 2 === 0 ? 1 : -1;
+    const tent = new THREE.Group();
+    placeOnTrack(tent, sample, side * (sample.width / 2 + 19), 0);
+    const canvas = new THREE.Mesh(
+      new THREE.BoxGeometry(8, 3.2, 11),
+      new THREE.MeshStandardMaterial({ color: i % 2 === 0 ? '#e7e2d4' : '#c7d8e4', roughness: 0.9 }),
+    );
+    canvas.position.y = 1.6;
+    tent.add(canvas);
+    const roof = new THREE.Mesh(
+      new THREE.ConeGeometry(6.8, 2.1, 4),
+      new THREE.MeshStandardMaterial({ color: i % 2 === 0 ? '#a33b2b' : '#2d5a78', roughness: 0.9 }),
+    );
+    roof.position.y = 4.1;
+    roof.rotation.y = Math.PI / 4;
+    tent.add(roof);
+    group.add(tent);
   }
 }
 
@@ -384,7 +529,8 @@ function buildTerrain(track: TrackData): THREE.Mesh {
         );
         uvs.push((i / n) * 18, t * 5);
         const shade = 0.78 + Math.sin(i * 0.19 + c) * 0.07 + t * 0.04;
-        color.setRGB(0.42 * shade, 0.53 * shade, 0.28 * shade);
+        if (track.surface === 'gravel') color.setRGB(0.56 * shade, 0.45 * shade, 0.3 * shade);
+        else color.setRGB(0.42 * shade, 0.53 * shade, 0.28 * shade);
         colors.push(color.r, color.g, color.b);
         if (i < rows - 1 && c < columns.length - 1) {
           const k = base + i * columns.length + c;
@@ -400,7 +546,7 @@ function buildTerrain(track: TrackData): THREE.Mesh {
   geo.setIndex(indices);
   geo.computeVertexNormals();
   const mat = new THREE.MeshStandardMaterial({
-    map: GRASS_TEXTURE,
+    map: track.surface === 'gravel' ? GRAVEL_TEXTURE : GRASS_TEXTURE,
     vertexColors: true,
     roughness: 1,
     metalness: 0,
@@ -426,7 +572,7 @@ function buildTireWalls(track: TrackData): THREE.Group {
   for (const side of [-1, 1]) {
     for (let i = 0; i < n; i += 6) {
       const s = samples[i];
-      if (side > 0 && inRangeWrap(s.u, track.pitEntryU, track.pitExitU)) continue;
+      if (track.pitLane.length > 1 && side > 0 && inRangeWrap(s.u, track.pitEntryU, track.pitExitU)) continue;
       const offset = side * (s.width / 2 + TRACK_BARRIER_MARGIN + 0.4);
       const x = s.pos.x + s.right.x * offset;
       const z = s.pos.z + s.right.z * offset;
@@ -566,14 +712,14 @@ function addStartGrid(group: THREE.Group, track: TrackData): void {
   group.add(holder);
 }
 
-export function buildTrackGroup(track: TrackData): THREE.Group {
+export function buildTrackGroup(track: TrackData, wet = false): THREE.Group {
   const group = new THREE.Group();
   group.name = 'circuit';
 
   const asphalt = new THREE.MeshStandardMaterial({
-    map: ASPHALT_TEXTURE,
-    color: track.night ? '#8d9096' : '#ffffff',
-    roughness: 0.93,
+    map: track.surface === 'gravel' ? GRAVEL_TEXTURE : ASPHALT_TEXTURE,
+    color: wet ? '#8b9198' : track.night ? '#8d9096' : '#ffffff',
+    roughness: track.surface === 'gravel' ? 0.99 : wet ? 0.58 : 0.93,
     metalness: 0.02,
   });
   group.add(buildRibbon(track, 0, track.width, 0.01, asphalt, 7));
@@ -590,12 +736,13 @@ export function buildTrackGroup(track: TrackData): THREE.Group {
   }
   group.add(buildTerrain(track));
 
-  const white = new THREE.MeshStandardMaterial({ color: '#efefef', roughness: 0.6 });
-  for (const side of [-1, 1]) {
-    group.add(buildRibbon(track, side * (track.width / 2 - 0.22), 0.14, 0.022, white, 4));
+  if (track.surface === 'asphalt') {
+    const white = new THREE.MeshStandardMaterial({ color: '#efefef', roughness: 0.6 });
+    for (const side of [-1, 1]) {
+      group.add(buildRibbon(track, side * (track.width / 2 - 0.22), 0.14, 0.022, white, 4));
+    }
+    group.add(buildKerbs(track));
   }
-
-  group.add(buildKerbs(track));
   group.add(buildBarriers(track));
   group.add(buildPitLane(track));
   group.add(buildTireWalls(track));
@@ -608,6 +755,8 @@ export function buildTrackGroup(track: TrackData): THREE.Group {
   addDrsBoards(group, track);
   addOverpass(group, track);
   addPitEntryLines(group, track);
+  addTracksideDecor(group, track);
+  if (track.surface === 'gravel') addRallyDecor(group, track);
   return group;
 }
 

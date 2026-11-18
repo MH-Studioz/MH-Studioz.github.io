@@ -3,8 +3,19 @@ import type { CompoundId } from '../physics/tyres';
 export type FinishType = 'gloss' | 'matte' | 'carbon';
 export type LiveryPattern = 'classic' | 'fade' | 'chevron' | 'halftone' | 'minimal';
 export type AeroPackage = 'low-drag' | 'balanced' | 'high-downforce';
-export type CarClass = 'hybrid' | 'v10' | 'junior' | 'gt' | 'prototype' | 'kart';
+export type CarClass = 'hybrid' | 'v10' | 'junior' | 'gt' | 'prototype' | 'hypercar' | 'stock' | 'kart';
 export type CarCategory = 'open-wheel' | 'gt' | 'prototype' | 'kart';
+
+export const CAR_CLASS_ORDER: CarClass[] = [
+  'hybrid',
+  'v10',
+  'junior',
+  'gt',
+  'prototype',
+  'hypercar',
+  'stock',
+  'kart',
+];
 
 export interface CarClassSpec {
   id: CarClass;
@@ -183,6 +194,64 @@ export const CAR_CLASSES: Record<CarClass, CarClassSpec> = {
     collisionHalfLength: 1.7,
     collisionRadius: 1.02,
   },
+  hypercar: {
+    id: 'hypercar',
+    label: 'GP Hypercar',
+    short: 'HYC',
+    blurb: 'Road-based hybrid hypercar · 1,450 kg · active aero',
+    category: 'gt',
+    mass: 1450,
+    grip: 1.18,
+    aero: 0.58,
+    drag: 1.12,
+    wheelbase: 2.7,
+    trackWidth: 1.68,
+    cgHeight: 0.4,
+    yawInertia: 2100,
+    wheelRadius: 0.36,
+    brakeDecel: 32,
+    steerScale: 1.16,
+    fuelCapacity: 90,
+    fuelDensity: 0.745,
+    gearRatios: [3.2, 2.35, 1.85, 1.5, 1.25, 1.05, 0.9],
+    finalDrive: 3.4,
+    maxRpm: 9000,
+    idleRpm: 1200,
+    torquePeak: 820,
+    drs: false,
+    ers: true,
+    collisionHalfLength: 1.65,
+    collisionRadius: 1.02,
+  },
+  stock: {
+    id: 'stock',
+    label: 'GP Stock',
+    short: 'STK',
+    blurb: 'Full-size stock car · 1,550 kg · oval aero',
+    category: 'gt',
+    mass: 1550,
+    grip: 1.12,
+    aero: 0.3,
+    drag: 1.5,
+    wheelbase: 2.9,
+    trackWidth: 1.62,
+    cgHeight: 0.46,
+    yawInertia: 2500,
+    wheelRadius: 0.37,
+    brakeDecel: 28,
+    steerScale: 1.2,
+    fuelCapacity: 80,
+    fuelDensity: 0.745,
+    gearRatios: [2.9, 1.9, 1.4, 1.05],
+    finalDrive: 3.5,
+    maxRpm: 8000,
+    idleRpm: 900,
+    torquePeak: 700,
+    drs: false,
+    ers: false,
+    collisionHalfLength: 1.75,
+    collisionRadius: 1.1,
+  },
   kart: {
     id: 'kart',
     label: 'GP Kart',
@@ -332,7 +401,7 @@ export function sanitizeConfig(input: Partial<CarConfig> | null | undefined): Ca
   return {
     driverName: typeof c.driverName === 'string' && c.driverName.trim() ? c.driverName.slice(0, 22) : DEFAULT_CONFIG.driverName,
     teamName: typeof c.teamName === 'string' && c.teamName.trim() ? c.teamName.slice(0, 24) : DEFAULT_CONFIG.teamName,
-    carClass: (['hybrid', 'v10', 'junior', 'gt', 'prototype', 'kart'] as const).includes(c.carClass as never) ? (c.carClass as CarClass) : DEFAULT_CONFIG.carClass,
+    carClass: CAR_CLASS_ORDER.includes(c.carClass as CarClass) ? (c.carClass as CarClass) : DEFAULT_CONFIG.carClass,
     livery: {
       primary: typeof l.primary === 'string' ? l.primary : DEFAULT_CONFIG.livery.primary,
       secondary: typeof l.secondary === 'string' ? l.secondary : DEFAULT_CONFIG.livery.secondary,

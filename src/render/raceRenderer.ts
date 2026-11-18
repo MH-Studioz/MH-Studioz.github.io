@@ -42,6 +42,7 @@ export class RaceRenderer {
     playerConfig: CarConfig,
     aiConfigs: CarConfig[],
     template: THREE.Group | null,
+    weather: 'dry' | 'wet' = 'dry',
   ) {
     this.track = track;
     this.renderer = new THREE.WebGLRenderer({
@@ -82,13 +83,13 @@ export class RaceRenderer {
     envTex.dispose();
     pmrem.dispose();
 
-    const environment = buildEnvironment(track);
+    const environment = buildEnvironment(track, weather === 'wet');
     const fog = (environment.userData as { fog?: THREE.Fog }).fog;
     if (fog) this.scene.fog = fog;
     this.scene.background = new THREE.Color(track.night ? '#04060c' : '#a9c6da');
     this.scene.add(environment);
 
-    this.trackGroup = buildTrackGroup(track);
+    this.trackGroup = buildTrackGroup(track, weather === 'wet');
     this.scene.add(this.trackGroup);
 
     this.rig = new CameraRig(window.innerWidth / Math.max(1, window.innerHeight));

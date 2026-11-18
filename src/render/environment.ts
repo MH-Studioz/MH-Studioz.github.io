@@ -308,7 +308,7 @@ function addFloodlights(group: THREE.Group, track: TrackData): THREE.Group {
   return lights;
 }
 
-export function buildEnvironment(track: TrackData): THREE.Group {
+export function buildEnvironment(track: TrackData, wet = false): THREE.Group {
   const group = new THREE.Group();
   group.name = 'environment';
   const palette = paletteFor(track);
@@ -317,6 +317,26 @@ export function buildEnvironment(track: TrackData): THREE.Group {
 
   const sky = new THREE.Mesh(new THREE.SphereGeometry(3200, 32, 20), skyMaterial(night));
   group.add(sky);
+
+  if (wet) {
+    const rainGeo = new THREE.BufferGeometry();
+    const rainPos: number[] = [];
+    const rainRng = mulberry32(seedFrom(track.id) + 991);
+    for (let i = 0; i < 900; i++) {
+      rainPos.push(
+        track.center.x + (rainRng() - 0.5) * 760,
+        8 + rainRng() * 100,
+        track.center.z + (rainRng() - 0.5) * 760,
+      );
+    }
+    rainGeo.setAttribute('position', new THREE.Float32BufferAttribute(rainPos, 3));
+    const rain = new THREE.Points(
+      rainGeo,
+      new THREE.PointsMaterial({ color: '#d6e8f2', size: 0.42, transparent: true, opacity: 0.48, depthWrite: false }),
+    );
+    rain.name = 'rain';
+    group.add(rain);
+  }
 
   if (night) {
     const starGeo = new THREE.BufferGeometry();
@@ -389,7 +409,7 @@ export function buildEnvironment(track: TrackData): THREE.Group {
   addScenery(group, track, palette);
   addGrandstands(group, track, makeCrowdTexture());
 
-  const fogColor = night ? '#050912' : palette === 'desert' ? '#c6b28d' : '#b9cedb';
+  const fogColor = wet ? (night ? '#07101a' : '#9eb3c2') : night ? '#050912' : palette === 'desert' ? '#c6b28d' : '#b9cedb';
   const fog = new THREE.Fog(fogColor, Math.max(220, size * 0.35), Math.max(1200, size * 2.4));
   (group.userData as { fog?: THREE.Fog }).fog = fog;
 

@@ -114,7 +114,14 @@ export class RaceSession {
     if (opts.weather === 'wet') {
       for (const config of aiConfigs) config.livery.compound = 'wet';
     }
-    this.renderer = new RaceRenderer(opts.canvas, opts.track, opts.playerConfig, aiConfigs, opts.template);
+    this.renderer = new RaceRenderer(
+      opts.canvas,
+      opts.track,
+      opts.playerConfig,
+      aiConfigs,
+      opts.template,
+      opts.weather,
+    );
 
     const hudCallbacks = {
       onPitCompound: (compound: CompoundId) => {
@@ -166,7 +173,8 @@ export class RaceSession {
 
   private buildRacers(): void {
     const opts = this.opts;
-    const playerCar = new RaceCar(opts.track, opts.playerConfig, opts.difficulty.assists, opts.difficulty.sim);
+    const wetness = opts.weather === 'wet' ? 1 : 0;
+    const playerCar = new RaceCar(opts.track, opts.playerConfig, opts.difficulty.assists, opts.difficulty.sim, wetness);
     playerCar.pitCompound = opts.playerConfig.livery.compound;
     this.racers.push({
       car: playerCar,
@@ -203,7 +211,7 @@ export class RaceSession {
         const config = teamConfig(team, opts.playerConfig.carClass);
         if (opts.weather === 'wet') config.livery.compound = 'wet';
         const pace = clamp(opts.difficulty.aiPace + [1.5, -1, 2.5, 0, -2, 3, -1.5, 1, -0.5][i], 50, 110);
-        const car = new RaceCar(opts.track, config, aiAssists, aiSim);
+        const car = new RaceCar(opts.track, config, aiAssists, aiSim, wetness);
         const ai = new AIDriver(car, team.tag, team.name, pace);
         this.racers.push({
           car,

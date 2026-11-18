@@ -100,6 +100,7 @@ export class RaceCar {
   readonly config: CarConfig;
   readonly assists: AssistSettings;
   readonly sim: SimSettings;
+  readonly wetness: number;
 
   pos = new Vector3();
   heading = 0;
@@ -156,13 +157,17 @@ export class RaceCar {
   private lockedRear = false;
   private gLatSmoothed = 0;
   private gLongSmoothed = 0;
+  private steerCommand = 0;
+  private alphaFState = 0;
+  private alphaRState = 0;
 
-  constructor(track: TrackData, config: CarConfig, assists: AssistSettings, sim: SimSettings) {
+  constructor(track: TrackData, config: CarConfig, assists: AssistSettings, sim: SimSettings, wetness = 0) {
     this.track = track;
     this.config = config;
     this.assists = assists;
     this.sim = sim;
-    this.ambient = track.night ? 19 : 27;
+    this.wetness = Math.max(0, Math.min(1, wetness));
+    this.ambient = track.night ? 19 : this.wetness > 0 ? 14 : 27;
     this.wheels = createTyreSet(config.livery.compound, this.ambient);
     this.pitCompound = config.livery.compound;
     this.stintCompounds = [config.livery.compound];
@@ -242,6 +247,9 @@ export class RaceCar {
     this.lateral = lateral;
     this.steerInput = 0;
     this.steerAngle = 0;
+    this.steerCommand = 0;
+    this.alphaFState = 0;
+    this.alphaRState = 0;
     this.throttle = 0;
     this.brake = 0;
     this.input = { throttle: 0, brake: 0, steer: 0 };
@@ -268,6 +276,9 @@ export class RaceCar {
     this.vx = 0;
     this.vy = 0;
     this.yawRate = 0;
+    this.steerCommand = 0;
+    this.alphaFState = 0;
+    this.alphaRState = 0;
     this.steerAngle = 0;
     this.gear = 1;
     this.throttle = 0;
@@ -289,6 +300,9 @@ export class RaceCar {
     this.vx = 0;
     this.vy = 0;
     this.yawRate = 0;
+    this.steerCommand = 0;
+    this.alphaFState = 0;
+    this.alphaRState = 0;
   }
 
   private damageScale(): number {
@@ -337,16 +351,28 @@ export class RaceCar {
       }
     }
 
-    const maxSteer = (0.36 * this.spec.steerScale) / (1 + speedAbs * 0.075) + 0.025;
-    const targetSteer = this.input.steer * maxSteer;
-    this.steerAngle = approach(this.steerAngle, targetSteer, dt * 1.9);
+    // Keyboard steering is binary, so ramp the command at speed instead of
+    // applying full lock in a single physics step. This is the largest single
+    // cause of snap spins on a gamepad/keyboard at high speed.
+    const mechanicalSteer = (0.3 * this.spec.steerScale) / (1 + speedAbs * 0.1) + 0.012;
+    // Do not let full keyboard lock ask for more front slip than the tyres
+    // can support at speed. This gives a positive understeer limit instead of
+    // converting a held steering key into a rear-end spin.
+    const gripSteerLimit = Math.atan(
+      (this.spec.grip * GRAVITY * 3.6 * this.spec.wheelbase) / Math.max(1, this.vx * this.vx),
+    );
+    const maxSteer = Math.min(mechanicalSteer, Math.max(0.018, gripSteerLimit));
+    const steerRate = 3.8 - Math.min(1.8, speedAbs * 0.018);
+    this.steerCommand = approach(this.steerCommand, this.input.steer, dt * steerRate);
+    const targetSteer = this.steerCommand * maxSteer;
+    this.steerAngle = approach(this.steerAngle, targetSteer, dt * 3.4);
     if (this.damage.suspension > 0.01) {
       this.steerAngle += Math.sin(this.u * 200) * 0.006 * this.damage.suspension * this.damageScale();
     }
 
     // Pit lane / limiter ---------------------------------------------------
     const pitZone = inRangeWrap(sample.u, this.track.pitEntryU, this.track.pitExitU);
-    this.inPitLane = pitZone && lateral > this.track.width / 2 + 1.6;
+    this.inPitLane = this.track.pitLane.length > 1 && pitZone && lateral > this.track.width / 2 + 1.6;
     this.pitLimiter = this.inPitLane;
     if (this.inPitLane && this.vx > PIT_LIMIT) {
       this.vx = Math.max(PIT_LIMIT, this.vx - 16 * dt);
@@ -406,19 +432,33 @@ export class RaceCar {
     fzF = loads[0] + loads[1];
     fzR = loads[2] + loads[3];
 
+    const rallySurface = this.track.surface === 'gravel' ? 0.76 : 1;
+    const wetSurface = 1 - this.wetness * 0.1;
     const kerbGrip = this.onKerb ? 0.94 : 1;
-    const surfaceGrip = this.offTrack ? 0.63 : kerbGrip;
+    const offGrip = this.track.surface === 'gravel' ? 0.58 : 0.63;
+    const surfaceGrip = (this.offTrack ? offGrip : kerbGrip) * rallySurface * wetSurface;
     const mechGrip = (1 + (this.config.setup.suspensionStiffness - 50) * 0.00055) * this.spec.grip;
     const wingPenalty = 1 - (1 - avgWing) * 0.3 * this.damageScale();
     const susPenalty = 1 - this.damage.suspension * 0.16 * this.damageScale();
-    const muF = averageGrip(this.wheels, 0, 1) * surfaceGrip * mechGrip * wingPenalty * susPenalty;
-    const muR = averageGrip(this.wheels, 2, 3) * surfaceGrip * mechGrip * susPenalty;
+    const muF = averageGrip(this.wheels, 0, 1, this.wetness) * surfaceGrip * mechGrip * wingPenalty * susPenalty;
+    // Rear tyres run wider and carry more static load. Giving the rear axle a
+    // small grip reserve produces a progressive, planted balance instead of
+    // equal front/rear grip that snaps into oversteer.
+    const muR = averageGrip(this.wheels, 2, 3, this.wetness) * surfaceGrip * mechGrip * susPenalty * 1.09;
 
     const stableV = Math.max(2.5, speedAbs);
     const lf = this.spec.wheelbase * 0.505;
     const lr = this.spec.wheelbase * 0.495;
-    const alphaF = Math.atan2(this.vy + this.yawRate * lf, stableV) - this.steerAngle;
-    const alphaR = Math.atan2(this.vy - this.yawRate * lr, stableV);
+    const alphaFRaw = Math.atan2(this.vy + this.yawRate * lf, stableV) - this.steerAngle;
+    const alphaRRaw = Math.atan2(this.vy - this.yawRate * lr, stableV);
+    // Tyre carcass relaxation: force does not jump instantly with slip angle.
+    // Filtering the slip angles removes the high-frequency yaw snap that made
+    // a quick correction turn into a spin.
+    const relaxRate = 5.5 + speedAbs * 0.1;
+    this.alphaFState += (alphaFRaw - this.alphaFState) * Math.min(1, dt * relaxRate);
+    this.alphaRState += (alphaRRaw - this.alphaRState) * Math.min(1, dt * relaxRate);
+    const alphaF = this.alphaFState;
+    const alphaR = this.alphaRState;
 
     let fyF = -pacejka(alphaF, muF, fzF);
     let fyR = -pacejka(alphaR, muR, fzR);
@@ -556,12 +596,24 @@ export class RaceCar {
 
     // Differential locking stabilises the rear under power.
     const diff = (this.config.setup.diffOnThrottle - 50) / 50;
-    if (this.throttle > 0.35) yawAcc -= this.yawRate * diff * 0.55;
+    if (this.throttle > 0.2) yawAcc -= this.yawRate * (0.2 + diff * 0.55);
+
+    // Mild electronic stability envelope whenever TC is enabled. It only
+    // intervenes once the rear is already past its useful slip window; it
+    // does not flatten normal cornering. Ace/Master keep TC off and remain
+    // deliberately unforgiving.
+    const rearSlip = Math.abs(this.alphaRState);
+    if (this.assists.tractionControl !== 'off' && speedAbs > 9 && rearSlip > 0.11) {
+      const excess = clamp((rearSlip - 0.11) * 2.2, 0, 1);
+      yawAcc -= this.yawRate * excess * (this.assists.tractionControl === 'full' ? 5.5 : 3.8);
+    }
 
     this.vx += ax * dt;
     this.vy += ay * dt;
     this.yawRate += yawAcc * dt;
-    this.yawRate *= 1 - dt * 0.5;
+    // Aerodynamic and tyre yaw damping. The old 0.5/s term left the car
+    // rotating long after the driver had corrected.
+    this.yawRate *= 1 - dt * (1.15 + Math.min(1.25, speedAbs * 0.013));
     if (this.vx < 0) this.vx = 0;
     this.vy = clamp(this.vy, -28, 28);
 
@@ -652,6 +704,7 @@ export class RaceCar {
         dt,
         wearMultiplier,
         ambient: this.ambient,
+        wetness: this.wetness,
       });
     }
 

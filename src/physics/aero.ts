@@ -37,13 +37,17 @@ export function computeAero(
   const rear = Math.max(0, Math.min(25, setup.rearWingAngle));
   const ride = Math.max(30, Math.min(80, setup.rideHeight));
   const wingAuthority =
-    classSpec.category === 'open-wheel'
-      ? 1
-      : classSpec.category === 'prototype'
-        ? 0.58
-        : classSpec.category === 'gt'
-          ? 0.42
-          : 0.06;
+    classSpec.id === 'hypercar'
+      ? 0.5
+      : classSpec.id === 'stock'
+        ? 0.3
+        : classSpec.category === 'open-wheel'
+          ? 1
+          : classSpec.category === 'prototype'
+            ? 0.58
+            : classSpec.category === 'gt'
+              ? 0.42
+              : 0.06;
   let cla =
     pkg.cla *
     classSpec.aero *

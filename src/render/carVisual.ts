@@ -258,7 +258,11 @@ export class CarVisual {
     this.lowDetail = lowDetail;
     this.uniforms = createLiveryUniforms(config);
     const category = CAR_CLASSES[config.carClass].category;
-    if (category === 'gt') {
+    if (config.carClass === 'hypercar') {
+      this.buildHypercar();
+    } else if (config.carClass === 'stock') {
+      this.buildStock();
+    } else if (category === 'gt') {
       this.buildGT();
     } else if (category === 'prototype') {
       this.buildPrototype();
@@ -614,6 +618,224 @@ export class CarVisual {
     this.addWheelRig(root, false, -0.88, -1.4, 0.34, 0.35);
     this.addWheelRig(root, false, 0.88, -1.4, 0.34, 0.35);
     this.addHelmet(0, 1.2, -0.3);
+  }
+
+  private buildHypercar(): void {
+    this.usingGlb = false;
+    this.modelScale = 1;
+    this.mergeAfterBuild = true;
+    const root = new THREE.Group();
+    this.modelRoot = root;
+    this.group.add(root);
+
+    const bodyMat = this.getMaterial('body');
+    const accentMat = this.getMaterial('accent');
+    const secondaryMat = this.getMaterial('secondary');
+    const carbonMat = this.getMaterial('carbon');
+    const glassMat = new THREE.MeshStandardMaterial({
+      color: '#0a1118',
+      roughness: 0.12,
+      metalness: 0.8,
+      transparent: true,
+      opacity: 0.9,
+    });
+
+    // Wide, low road-based hypercar with a cab-forward canopy.
+    const floor = new THREE.Mesh(new RoundedBoxGeometry(2.0, 0.11, 4.5, 3, 0.055), carbonMat);
+    floor.position.set(0, 0.2, -0.03);
+    root.add(floor);
+    const shell = new THREE.Mesh(taperedBoxGeometry(1.94, 1.6, 0.58, 0.4, 4.18), bodyMat);
+    shell.position.set(0, 0.55, 0.03);
+    root.add(shell);
+    const nose = new THREE.Mesh(new RoundedBoxGeometry(1.4, 0.22, 1.1, 3, 0.07), bodyMat);
+    nose.position.set(0, 0.68, 1.55);
+    root.add(nose);
+    const hood = new THREE.Mesh(new RoundedBoxGeometry(1.52, 0.16, 1.0, 3, 0.06), bodyMat);
+    hood.position.set(0, 0.84, 0.88);
+    root.add(hood);
+
+    const cabin = new THREE.Mesh(taperedBoxGeometry(1.34, 1.08, 0.68, 0.38, 1.72), bodyMat);
+    cabin.position.set(0, 1.08, -0.22);
+    root.add(cabin);
+    const roof = new THREE.Mesh(new RoundedBoxGeometry(1.06, 0.1, 1.18, 3, 0.05), bodyMat);
+    roof.position.set(0, 1.4, -0.28);
+    root.add(roof);
+    const windscreen = new THREE.Mesh(new THREE.BoxGeometry(1.02, 0.34, 0.045), glassMat);
+    windscreen.position.set(0, 1.23, 0.58);
+    windscreen.rotation.x = -0.5;
+    root.add(windscreen);
+    for (const side of [-1, 1]) {
+      const window = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.28, 0.86), glassMat);
+      window.position.set(side * 0.65, 1.17, -0.24);
+      root.add(window);
+      const fender = new THREE.Mesh(new RoundedBoxGeometry(0.46, 0.3, 1.18, 3, 0.1), bodyMat);
+      fender.position.set(side * 0.94, 0.56, 1.5);
+      root.add(fender);
+      const rearFender = fender.clone();
+      rearFender.position.z = -1.48;
+      root.add(rearFender);
+      const sideIntake = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.2, 0.7), carbonMat);
+      sideIntake.position.set(side * 0.97, 0.63, 0.02);
+      root.add(sideIntake);
+      const mirror = new THREE.Mesh(new RoundedBoxGeometry(0.19, 0.08, 0.08, 2, 0.02), accentMat);
+      mirror.position.set(side * 0.7, 1.07, 0.34);
+      root.add(mirror);
+    }
+    const roofScoop = new THREE.Mesh(new RoundedBoxGeometry(0.34, 0.12, 0.62, 3, 0.04), carbonMat);
+    roofScoop.position.set(0, 1.47, -0.66);
+    root.add(roofScoop);
+
+    const splitter = new THREE.Mesh(new RoundedBoxGeometry(2.06, 0.05, 0.52, 2, 0.02), carbonMat);
+    splitter.position.set(0, 0.2, 2.18);
+    root.add(splitter);
+    const grille = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.15, 0.035), carbonMat);
+    grille.position.set(0, 0.5, 2.19);
+    root.add(grille);
+    for (const side of [-1, 1]) {
+      const headlight = new THREE.Mesh(
+        new THREE.BoxGeometry(0.4, 0.09, 0.035),
+        new THREE.MeshStandardMaterial({ color: '#f4fbff', emissive: '#9fdcff', emissiveIntensity: 2.0 }),
+      );
+      headlight.position.set(side * 0.55, 0.7, 2.2);
+      root.add(headlight);
+    }
+    const tail = new THREE.Mesh(
+      new THREE.BoxGeometry(1.55, 0.075, 0.035),
+      new THREE.MeshStandardMaterial({ color: '#ff2020', emissive: '#ff0000', emissiveIntensity: 2.2 }),
+    );
+    tail.position.set(0, 0.7, -2.12);
+    root.add(tail);
+
+    const rearWing = new THREE.Group();
+    rearWing.position.set(0, 1.23, -2.0);
+    root.add(rearWing);
+    const rearPlane = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.05, 0.5), accentMat);
+    rearWing.add(rearPlane);
+    for (const side of [-1, 1]) {
+      const plate = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.42, 0.56), secondaryMat);
+      plate.position.set(side * 0.95, -0.02, 0.02);
+      rearWing.add(plate);
+      const support = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.6, 0.1), carbonMat);
+      support.position.set(side * 0.5, -0.28, 0.02);
+      rearWing.add(support);
+    }
+    const diffuser = new THREE.Mesh(new THREE.BoxGeometry(1.58, 0.22, 0.52), carbonMat);
+    diffuser.position.set(0, 0.22, -2.13);
+    root.add(diffuser);
+
+    this.addWheelRig(root, true, -0.91, 1.48, 0.31, 0.35);
+    this.addWheelRig(root, true, 0.91, 1.48, 0.31, 0.35);
+    this.addWheelRig(root, false, -0.93, -1.46, 0.35, 0.36);
+    this.addWheelRig(root, false, 0.93, -1.46, 0.35, 0.36);
+    this.addHelmet(0, 1.17, -0.24);
+  }
+
+  private buildStock(): void {
+    this.usingGlb = false;
+    this.modelScale = 1;
+    this.mergeAfterBuild = true;
+    const root = new THREE.Group();
+    this.modelRoot = root;
+    this.group.add(root);
+
+    const bodyMat = this.getMaterial('body');
+    const accentMat = this.getMaterial('accent');
+    const secondaryMat = this.getMaterial('secondary');
+    const carbonMat = this.getMaterial('carbon');
+    const glassMat = new THREE.MeshStandardMaterial({
+      color: '#0d151b',
+      roughness: 0.2,
+      metalness: 0.6,
+      transparent: true,
+      opacity: 0.9,
+    });
+
+    // Long, tall sedan silhouette with a short deck and a big rear wing.
+    const floor = new THREE.Mesh(new RoundedBoxGeometry(1.92, 0.14, 4.68, 3, 0.06), carbonMat);
+    floor.position.set(0, 0.25, -0.02);
+    root.add(floor);
+    const shell = new THREE.Mesh(taperedBoxGeometry(1.88, 1.68, 0.84, 0.62, 4.36), bodyMat);
+    shell.position.set(0, 0.69, 0.04);
+    root.add(shell);
+    const hood = new THREE.Mesh(new RoundedBoxGeometry(1.56, 0.24, 1.28, 3, 0.06), bodyMat);
+    hood.position.set(0, 0.98, 1.38);
+    root.add(hood);
+    const deck = new THREE.Mesh(new RoundedBoxGeometry(1.7, 0.2, 0.92, 3, 0.06), bodyMat);
+    deck.position.set(0, 0.98, -1.55);
+    root.add(deck);
+
+    const cabin = new THREE.Mesh(taperedBoxGeometry(1.58, 1.42, 0.92, 0.76, 1.9), bodyMat);
+    cabin.position.set(0, 1.22, -0.18);
+    root.add(cabin);
+    const roof = new THREE.Mesh(new RoundedBoxGeometry(1.38, 0.1, 1.54, 3, 0.04), bodyMat);
+    roof.position.set(0, 1.73, -0.26);
+    root.add(roof);
+    const windscreen = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.4, 0.045), glassMat);
+    windscreen.position.set(0, 1.48, 0.72);
+    windscreen.rotation.x = -0.4;
+    root.add(windscreen);
+    const rearGlass = new THREE.Mesh(new THREE.BoxGeometry(1.24, 0.34, 0.045), glassMat);
+    rearGlass.position.set(0, 1.49, -1.08);
+    rearGlass.rotation.x = 0.48;
+    root.add(rearGlass);
+    for (const side of [-1, 1]) {
+      const window = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.34, 1.28), glassMat);
+      window.position.set(side * 0.8, 1.43, -0.26);
+      root.add(window);
+      const fender = new THREE.Mesh(new RoundedBoxGeometry(0.42, 0.38, 1.16, 3, 0.08), bodyMat);
+      fender.position.set(side * 0.9, 0.72, 1.5);
+      root.add(fender);
+      const rearFender = fender.clone();
+      rearFender.position.z = -1.5;
+      root.add(rearFender);
+    }
+
+    const splitter = new THREE.Mesh(new RoundedBoxGeometry(2.02, 0.07, 0.5, 2, 0.025), carbonMat);
+    splitter.position.set(0, 0.23, 2.24);
+    root.add(splitter);
+    const grille = new THREE.Mesh(new THREE.BoxGeometry(1.18, 0.22, 0.05), carbonMat);
+    grille.position.set(0, 0.54, 2.25);
+    root.add(grille);
+    for (const side of [-1, 1]) {
+      const headlight = new THREE.Mesh(
+        new THREE.BoxGeometry(0.38, 0.14, 0.05),
+        new THREE.MeshStandardMaterial({ color: '#eff6ff', emissive: '#bfe0ff', emissiveIntensity: 1.8 }),
+      );
+      headlight.position.set(side * 0.56, 0.74, 2.26);
+      root.add(headlight);
+      const mirror = new THREE.Mesh(new RoundedBoxGeometry(0.2, 0.09, 0.08, 2, 0.02), accentMat);
+      mirror.position.set(side * 0.82, 1.16, 0.35);
+      root.add(mirror);
+    }
+    const tail = new THREE.Mesh(
+      new THREE.BoxGeometry(1.5, 0.12, 0.05),
+      new THREE.MeshStandardMaterial({ color: '#ff1717', emissive: '#ff0000', emissiveIntensity: 2.1 }),
+    );
+    tail.position.set(0, 0.75, -2.2);
+    root.add(tail);
+
+    const rearWing = new THREE.Group();
+    rearWing.position.set(0, 1.55, -2.0);
+    root.add(rearWing);
+    const rearPlane = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.06, 0.48), accentMat);
+    rearWing.add(rearPlane);
+    for (const side of [-1, 1]) {
+      const plate = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.46, 0.56), secondaryMat);
+      plate.position.set(side * 1.0, -0.03, 0.02);
+      rearWing.add(plate);
+      const support = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.55, 0.1), carbonMat);
+      support.position.set(side * 0.5, -0.28, 0.02);
+      rearWing.add(support);
+    }
+    const diffuser = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.25, 0.48), carbonMat);
+    diffuser.position.set(0, 0.27, -2.18);
+    root.add(diffuser);
+
+    this.addWheelRig(root, true, -0.88, 1.52, 0.34, 0.37);
+    this.addWheelRig(root, true, 0.88, 1.52, 0.34, 0.37);
+    this.addWheelRig(root, false, -0.9, -1.5, 0.38, 0.38);
+    this.addWheelRig(root, false, 0.9, -1.5, 0.38, 0.38);
+    this.addHelmet(0, 1.5, -0.26);
   }
 
   private buildKart(): void {

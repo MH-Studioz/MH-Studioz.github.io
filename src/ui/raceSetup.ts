@@ -1,4 +1,5 @@
 import {
+  CAR_CLASS_ORDER,
   CAR_CLASSES,
   loadCarConfig,
   saveCarConfig,
@@ -33,6 +34,8 @@ const CLASS_TOP_SPEED: Record<CarClass, number> = {
   junior: 289,
   gt: 305,
   prototype: 330,
+  hypercar: 352,
+  stock: 310,
   kart: 115,
 };
 
@@ -127,7 +130,7 @@ export class RaceSetupUI {
   private buildClassGrid(): void {
     const grid = element('race-car-class-grid');
     grid.innerHTML = '';
-    for (const value of ['hybrid', 'v10', 'junior', 'gt', 'prototype', 'kart'] as CarClass[]) {
+    for (const value of CAR_CLASS_ORDER) {
       const spec = CAR_CLASSES[value];
       const button = document.createElement('button');
       button.type = 'button';
@@ -222,7 +225,7 @@ export class RaceSetupUI {
     this.config = loadCarConfig();
     const spec = CAR_CLASSES[this.config.carClass];
     this.classButtons.forEach((button, index) => {
-      button.classList.toggle('active', (['hybrid', 'v10', 'junior', 'gt', 'prototype', 'kart'] as CarClass[])[index] === this.config.carClass);
+      button.classList.toggle('active', CAR_CLASS_ORDER[index] === this.config.carClass);
     });
     const carName = element('race-car-title');
     carName.textContent = `${this.config.driverName.toUpperCase()} · ${spec.label.toUpperCase()}`;

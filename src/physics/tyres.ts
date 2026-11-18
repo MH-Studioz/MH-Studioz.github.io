@@ -27,7 +27,7 @@ export const COMPOUNDS: Record<CompoundId, TyreCompound> = {
     wearRate: 1.55,
     optimalTemp: 98,
     window: 30,
-    wetGrip: 0.36,
+    wetGrip: 0.3,
   },
   medium: {
     id: 'medium',
@@ -38,7 +38,7 @@ export const COMPOUNDS: Record<CompoundId, TyreCompound> = {
     wearRate: 1.0,
     optimalTemp: 104,
     window: 35,
-    wetGrip: 0.4,
+    wetGrip: 0.32,
   },
   hard: {
     id: 'hard',
@@ -49,7 +49,7 @@ export const COMPOUNDS: Record<CompoundId, TyreCompound> = {
     wearRate: 0.66,
     optimalTemp: 112,
     window: 40,
-    wetGrip: 0.44,
+    wetGrip: 0.34,
   },
   intermediate: {
     id: 'intermediate',
@@ -60,7 +60,7 @@ export const COMPOUNDS: Record<CompoundId, TyreCompound> = {
     wearRate: 1.2,
     optimalTemp: 72,
     window: 28,
-    wetGrip: 0.9,
+    wetGrip: 0.78,
   },
   wet: {
     id: 'wet',
@@ -99,12 +99,12 @@ export function createTyre(position: WheelPosition, compound: CompoundId, ambien
     position,
     compound: COMPOUNDS[compound],
     life: 1,
-    surfaceTemp: ambient + 8,
-    coreTemp: ambient,
+    surfaceTemp: ambient + 13,
+    coreTemp: ambient + 6,
     load: 0,
     slipAngle: 0,
     slipRatio: 0,
-    tempGrip: 0.72,
+    tempGrip: 0.8,
     lifeGrip: 1,
     locked: false,
     flatSpot: 0,
@@ -136,8 +136,9 @@ export function updateTyreGrip(tyre: TyreState): void {
   const t = tyre.coreTemp;
   let tempGrip: number;
   if (t < opt) {
-    // Cold tyres: a racing slick is nearly useless at 30 C.
-    tempGrip = 0.55 + 0.45 * Math.max(0, Math.min(1, (t - 18) / (opt - 18)));
+    // Cold tyres are still a little greasy, but not so edgy that the first
+    // keyboard input after the start instantly rotates the car.
+    tempGrip = 0.64 + 0.36 * Math.max(0, Math.min(1, (t - 18) / (opt - 18)));
   } else {
     const over = (t - opt) / tyre.compound.window;
     tempGrip = 1 - Math.min(0.34, over * 0.18);
@@ -175,7 +176,8 @@ export function updateTyre(tyre: TyreState, input: TyreUpdateInput): void {
   const heatFromSlide = Math.min(3.2, slide * 0.032 * loadFactor);
   const heatFromBrake = input.braking * 0.55;
   const heatFromEngine = input.slipRatio * 0.25;
-  const cooling = (tyre.surfaceTemp - input.ambient) * (0.055 + 0.0017 * speed);
+  const wetness = Math.max(0, Math.min(1, input.wetness ?? 0));
+  const cooling = (tyre.surfaceTemp - input.ambient) * (0.055 + 0.0017 * speed + wetness * 0.045);
   tyre.surfaceTemp += (heatFromSlide + heatFromBrake + heatFromEngine - cooling) * input.dt * 1.9;
   tyre.surfaceTemp = Math.max(input.ambient, Math.min(230, tyre.surfaceTemp));
   const coreTarget = tyre.surfaceTemp * 0.86 + 12;
@@ -196,13 +198,18 @@ export function updateTyre(tyre: TyreState, input: TyreUpdateInput): void {
   }
 }
 
-export function tyreGrip(tyre: TyreState): number {
-  return tyre.compound.mu * tyre.tempGrip * Math.max(0.3, tyre.lifeGrip);
+export function tyreGrip(tyre: TyreState, wetness = 0): number {
+  // Slicks retain almost none of their peak grip in standing water; the wet
+  // tyre gives up some dry performance but keeps its tread working. wetness
+  // is 0 for dry and 1 for a fully wet surface.
+  const water = Math.max(0, Math.min(1, wetness));
+  const wetRetention = 1 - water * (1 - tyre.compound.wetGrip);
+  return tyre.compound.mu * tyre.tempGrip * Math.max(0.3, tyre.lifeGrip) * wetRetention;
 }
 
-export function averageGrip(tyres: TyreState[], from: number, to: number): number {
+export function averageGrip(tyres: TyreState[], from: number, to: number, wetness = 0): number {
   let sum = 0;
-  for (let i = from; i <= to; i++) sum += tyreGrip(tyres[i]);
+  for (let i = from; i <= to; i++) sum += tyreGrip(tyres[i], wetness);
   return sum / (to - from + 1);
 }
 
@@ -210,10 +217,10 @@ export function reMount(tyres: TyreState[], compound: CompoundId, ambient: numbe
   for (const t of tyres) {
     t.compound = COMPOUNDS[compound];
     t.life = 1;
-    t.surfaceTemp = ambient + 22;
-    t.coreTemp = ambient + 10;
+    t.surfaceTemp = ambient + 24;
+    t.coreTemp = ambient + 14;
     t.lifeGrip = 1;
     t.flatSpot = 0;
-    t.tempGrip = 0.8;
+    t.tempGrip = 0.86;
   }
 }

@@ -22,6 +22,8 @@ const TOP_SPEED: Record<CarConfig['carClass'], number> = {
   junior: 289,
   gt: 305,
   prototype: 330,
+  hypercar: 352,
+  stock: 310,
   kart: 115,
 };
 

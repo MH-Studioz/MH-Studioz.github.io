@@ -111,6 +111,12 @@ export const TRACK_METADATA: Record<string, TrackMeta> = {
   },
   'it-1922': {
     width: 13,
+    // Monza's pit lane runs from the exit of Parabolica to just after the
+    // Rettifilo. Keep the box before the start line so the service bay is not
+    // placed beyond the timing line on the long straight.
+    pitEntry: 0.858,
+    pitExit: 0.048,
+    pitBox: 0.974,
     banking: [{ at: 0.9, deg: 7, spread: 0.025, snapWindow: 0.05 }],
     elevation: [
       { at: 0.0, height: 10 },
@@ -253,6 +259,32 @@ export const TRACK_METADATA: Record<string, TrackMeta> = {
   'pt-2008': { width: 12.5 },
   'it-1914': { width: 13 },
   'es-2026': { width: 12.5 },
+  'rally-silverpine': {
+    width: 8.8,
+    surface: 'gravel',
+    elevation: [
+      { at: 0.0, height: 18 },
+      { at: 0.12, height: 34 },
+      { at: 0.28, height: 26 },
+      { at: 0.45, height: 42 },
+      { at: 0.63, height: 31 },
+      { at: 0.8, height: 48 },
+      { at: 1.0, height: 18 },
+    ],
+  },
+  'rally-red-mesa': {
+    width: 9.2,
+    surface: 'gravel',
+    elevation: [
+      { at: 0.0, height: 26 },
+      { at: 0.18, height: 38 },
+      { at: 0.36, height: 22 },
+      { at: 0.54, height: 46 },
+      { at: 0.72, height: 34 },
+      { at: 0.9, height: 52 },
+      { at: 1.0, height: 26 },
+    ],
+  },
 };
 
 /** Metadata lookup that tolerates name matching for supplemental circuits. */

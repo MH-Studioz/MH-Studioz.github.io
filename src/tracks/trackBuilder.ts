@@ -197,9 +197,10 @@ function buildPitLane(
     const u = wrapU(uUnwrapped);
     const idx = Math.round(u * n) % n;
     const s = samples[idx];
-    const inT = smoothstep((uUnwrapped - entryU) / 0.028);
-    const outT = smoothstep(((1 + exitU) - uUnwrapped) / 0.035);
-    const offset = pitWidth * inT * outT;
+    // Keep the lane centre outside the racing surface for its full length.
+    // The old taper started at the track centreline, so the pit-lane ribbon
+    // briefly covered the racing line at every entry and exit.
+    const offset = pitWidth;
     lane.push(
       new Vector3(
         s.pos.x + s.right.x * offset,
@@ -215,6 +216,7 @@ function buildPitLane(
 export function buildTrack(feature: TrackFeature, metaOverride?: ReturnType<typeof getTrackMeta>): TrackData {
   const meta = metaOverride ?? getTrackMeta(feature.id, feature.name);
   const width = meta.width ?? 13;
+  const surface = meta.surface ?? 'asphalt';
   const projected = projectCoordinates(feature.coordinates);
   const curve = new CatmullRomCurve3(projected, true, 'centripetal', 0.5);
   const approxLength = Math.max(curve.getLength(), 500);
@@ -241,7 +243,9 @@ export function buildTrack(feature: TrackFeature, metaOverride?: ReturnType<type
     let best = Infinity;
     let bestI = -1;
     let bestJ = -1;
-    const minSep = n * 0.22;
+    // Keep the separation an integer: adding a fractional offset to the
+    // sample index makes points[j] undefined on figure-of-eight circuits.
+    const minSep = Math.ceil(n * 0.22);
     for (let i = 0; i < n; i += 2) {
       for (let j = i + minSep; j < n; j += 2) {
         const a = points[i];
@@ -368,13 +372,16 @@ export function buildTrack(feature: TrackFeature, metaOverride?: ReturnType<type
       radius: 1 / Math.max(1e-5, smoothedK[i]),
       sector,
       drs: false,
-      kerb: smoothedK[i] > 1 / 210 || vehicleKerb(i, smoothedK, n),
+      kerb: surface === 'asphalt' && (smoothedK[i] > 1 / 210 || vehicleKerb(i, smoothedK, n)),
     });
   }
 
-  const drsZones: DRSZone[] = meta.drs
-    ? meta.drs.map(([start, end]) => ({ start: wrapU(start), end: wrapU(end), detection: wrapU(start - 0.01) }))
-    : autoDrsZones(points, smoothedK, length);
+  const drsZones: DRSZone[] =
+    surface === 'gravel'
+      ? []
+      : meta.drs
+        ? meta.drs.map(([start, end]) => ({ start: wrapU(start), end: wrapU(end), detection: wrapU(start - 0.01) }))
+        : autoDrsZones(points, smoothedK, length);
   for (const s of samples) {
     s.drs = drsZones.some((z) => inRangeWrap(s.u, z.start, z.end));
   }
@@ -382,7 +389,9 @@ export function buildTrack(feature: TrackFeature, metaOverride?: ReturnType<type
   const pitEntryU = meta.pitEntry ?? 0.86;
   const pitExitU = meta.pitExit ?? 0.055;
   const pitBoxU = meta.pitBox ?? 0.972;
-  const pitLane = buildPitLane(samples, pitEntryU, pitExitU, width / 2 + 7.5);
+  // Rally stages are point-to-point in spirit; a service park is not a
+  // raceable pit lane, so do not project one onto the stage surface.
+  const pitLane = surface === 'gravel' ? [] : buildPitLane(samples, pitEntryU, pitExitU, width / 2 + 4.6);
 
   let minX = Infinity;
   let maxX = -Infinity;
@@ -403,6 +412,7 @@ export function buildTrack(feature: TrackFeature, metaOverride?: ReturnType<type
     location: feature.location,
     opened: feature.opened,
     length,
+    surface,
     width,
     night: Boolean(meta.night),
     samples,

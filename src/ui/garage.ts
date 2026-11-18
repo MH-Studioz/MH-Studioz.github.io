@@ -1,5 +1,6 @@
 import {
   AERO_PACKAGE_LABELS,
+  CAR_CLASS_ORDER,
   CAR_CLASSES,
   DEFAULT_CONFIG,
   FINISH_LABELS,
@@ -82,10 +83,10 @@ export class GarageUI {
     this.container.innerHTML = '';
 
     // 01 — class.
-    const carClass = section('01', 'RACE CLASS', '6 FORMULAS');
+    const carClass = section('01', 'RACE CLASS', '8 MODELS');
     const classGrid = document.createElement('div');
     classGrid.className = 'aero-grid';
-    for (const value of ['hybrid', 'v10', 'junior', 'gt', 'prototype', 'kart'] as CarClass[]) {
+    for (const value of CAR_CLASS_ORDER) {
       const spec = CAR_CLASSES[value];
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -393,10 +394,20 @@ export class GarageUI {
       junior: 289,
       gt: 305,
       prototype: 330,
+      hypercar: 352,
+      stock: 310,
       kart: 115,
     };
     const aeroAuthority =
-      carClass.category === 'open-wheel' ? 1 : carClass.category === 'prototype' ? 0.52 : carClass.category === 'gt' ? 0.32 : 0.04;
+      carClass.id === 'hypercar'
+        ? 0.5
+        : carClass.category === 'open-wheel'
+          ? 1
+          : carClass.category === 'prototype'
+            ? 0.52
+            : carClass.category === 'gt'
+              ? 0.32
+              : 0.04;
     const topSpeed = Math.round(
       topSpeedBase[carClass.id] +
         pkgOffset * aeroAuthority -

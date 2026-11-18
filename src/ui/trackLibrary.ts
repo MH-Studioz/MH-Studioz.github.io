@@ -78,6 +78,10 @@ export class TrackLibrary {
       if (meta.banking && meta.banking.length) {
         flags.push(`<span class="tc-flag bank">${Math.max(...meta.banking.map((b) => b.deg))}° BANK</span>`);
       }
+      if (meta.surface === 'gravel') {
+        flags.push('<span class="tc-flag gravel">GRAVEL</span>');
+        card.dataset.gravel = '1';
+      }
       if (isStreet(feature)) {
         flags.push('<span class="tc-flag">STREET</span>');
         card.dataset.street = '1';

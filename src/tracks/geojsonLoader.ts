@@ -85,6 +85,54 @@ function buildBuddh(): TrackFeature {
   };
 }
 
+const RALLY_STAGES: Array<{
+  id: string;
+  name: string;
+  location: string;
+  length: number;
+  shape: [number, number][];
+}> = [
+  {
+    id: 'rally-silverpine',
+    name: 'Silverpine Gravel Stage',
+    location: 'Silverpine Forest',
+    length: 3240,
+    shape: [
+      [0, -400], [16, -308], [76, -258], [158, -282], [220, -356], [298, -382],
+      [360, -326], [348, -246], [288, -202], [302, -140], [382, -102], [420, -30],
+      [382, 58], [324, 84], [302, 158], [252, 222], [182, 204], [158, 124],
+      [104, 102], [64, 158], [52, 246], [0, 302], [-50, 244], [-62, 154],
+      [-120, 104], [-184, 124], [-232, 182], [-300, 152], [-332, 82], [-282, 0],
+      [-222, -30], [-202, -120], [-252, -202], [-202, -302], [-122, -332], [-62, -382],
+    ],
+  },
+  {
+    id: 'rally-red-mesa',
+    name: 'Red Mesa Rally Stage',
+    location: 'Red Mesa',
+    length: 2760,
+    shape: [
+      [0, -300], [28, -218], [96, -180], [172, -198], [230, -260], [306, -266],
+      [356, -210], [340, -132], [276, -92], [232, -34], [252, 42], [322, 76],
+      [348, 146], [302, 214], [228, 222], [184, 164], [126, 142], [72, 188],
+      [44, 252], [-10, 280], [-62, 226], [-66, 150], [-128, 112], [-198, 136],
+      [-250, 198], [-314, 174], [-340, 104], [-286, 28], [-224, 4], [-204, -72],
+      [-252, -146], [-214, -232], [-138, -266], [-72, -282],
+    ],
+  },
+];
+
+function buildRallyStage(stage: (typeof RALLY_STAGES)[number]): TrackFeature {
+  return {
+    id: stage.id,
+    name: stage.name,
+    location: stage.location,
+    opened: 2024,
+    length: stage.length,
+    coordinates: metersToLonLat(stage.shape, 9.28, 45.62),
+  };
+}
+
 function normalizeFeature(raw: RawGeoJSON['features'][number]): TrackFeature | null {
   const p = raw.properties ?? {};
   const id = String(p.id ?? '').trim();
@@ -137,6 +185,7 @@ export async function loadTrackCatalog(): Promise<TrackCatalog> {
       .filter((f): f is TrackFeature => f !== null);
     if (features.length < 10) throw new Error('Too few usable circuits');
     if (!features.some((f) => f.name.toLowerCase().includes('buddh'))) features.push(buildBuddh());
+    for (const stage of RALLY_STAGES) if (!features.some((f) => f.id === stage.id)) features.push(buildRallyStage(stage));
     features.sort((a, b) => a.name.localeCompare(b.name));
     catalog = { features, source: TRACK_GEOJSON_URL, fallback: false };
   } catch (err) {
@@ -150,6 +199,7 @@ export async function loadTrackCatalog(): Promise<TrackCatalog> {
       coordinates: metersToLonLat(f.shape, 9.28, 45.62),
     }));
     features.push(buildBuddh());
+    for (const stage of RALLY_STAGES) features.push(buildRallyStage(stage));
     features.sort((a, b) => a.name.localeCompare(b.name));
     catalog = { features, source: 'embedded fallback', fallback: true };
   }

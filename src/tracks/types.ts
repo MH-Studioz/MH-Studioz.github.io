@@ -1,6 +1,7 @@
 import type { Vector3 } from 'three';
 
 export type LonLat = [number, number];
+export type TrackSurface = 'asphalt' | 'gravel';
 
 /** A circuit exactly as it arrives from circuits.geojson. */
 export interface TrackFeature {
@@ -38,6 +39,7 @@ export interface ElevationPoint {
 
 export interface TrackMeta {
   width?: number;
+  surface?: TrackSurface;
   night?: boolean;
   overpass?: boolean;
   elevation?: ElevationPoint[];
@@ -112,6 +114,7 @@ export interface TrackData {
   /** Official length, metres. */
   length: number;
   width: number;
+  surface: TrackSurface;
   night: boolean;
   samples: TrackSample[];
   corners: Corner[];
