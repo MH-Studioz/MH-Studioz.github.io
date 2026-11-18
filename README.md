@@ -2,7 +2,7 @@
 
 An open-wheel racing simulator built with TypeScript, Vite and Three.js. It runs in the browser and as a Windows desktop app.
 
-**Play:** https://aravgoyal11-rgb.github.io/apex-gp-2026/
+**Play:** https://mh-studioz.github.io/apex-gp-2026/
 
 ## What is in the game
 
