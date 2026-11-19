@@ -10,6 +10,7 @@ import { Game, type Entry, type RoundConfig, type RoundResult } from './engine';
 import { SoundEngine } from './audio';
 import { AtlasMap } from './map';
 import {
+  DAILY_LAUNCH,
   dateKey,
   dailyNumber,
   hashSeed,
@@ -56,7 +57,7 @@ const MODES: ModeDef[] = [
     tag: 'DAILY 7',
     card: 'Shared daily seed',
     blurb:
-      'The world’s shared descent. Seven prompts drawn deterministically from the date — identical for every player until local midnight, when the next one unlocks. Your streak, best depth and history stay in this browser.',
+      'The world’s shared descent. Seven prompts drawn deterministically from the date — identical for every player until local midnight, when the next one unlocks. Day #1 is Monday 23 November 2026. Your streak, best depth and history stay in this browser.',
     meta: ['7 PROMPTS', '20 SECONDS', 'SHARED SEED'],
   },
   {
@@ -382,7 +383,10 @@ export class App {
       bit === '20 SECONDS' ? `${this.difficultySeconds()} SECONDS · ${this.difficultyLabel()}` : bit
     );
     if (this.mode === 'blitz') bits.splice(2, 1, `${REGION_LABEL[this.region].toUpperCase()} LOCK`);
-    if (this.mode === 'daily') bits.push(`#${dailyNumber(new Date())} · ${dateKey()}`);
+    if (this.mode === 'daily') {
+      const number = dailyNumber(new Date());
+      bits.push(number >= 1 ? `#${number} · ${dateKey()}` : 'PREMIERE · 23 NOV');
+    }
     el('run-meta').innerHTML = bits.map((bit) => `<span><b>•</b> ${bit}</span>`).join('');
 
     el('btn-start').querySelector('span')!.textContent =
@@ -587,7 +591,7 @@ export class App {
       mode,
       region,
       seed,
-      number: mode === 'daily' ? dailyNumber(new Date()) : 0,
+      number: mode === 'daily' ? Math.max(1, dailyNumber(new Date())) : 0,
       seconds: secondsOverride ?? this.difficultySeconds(),
     };
 
@@ -940,12 +944,17 @@ export class App {
     const note = document.querySelector<HTMLElement>('.daily-note');
     if (!note) return;
     const now = new Date();
-    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
-    const left = Math.max(0, midnight - now.getTime());
+    const launch = new Date(DAILY_LAUNCH.year, DAILY_LAUNCH.month, DAILY_LAUNCH.day).getTime();
+    const target =
+      dailyNumber(now) < 1
+        ? launch
+        : new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
+    const left = Math.max(0, target - now.getTime());
     const hours = Math.floor(left / 3_600_000);
     const minutes = Math.floor((left % 3_600_000) / 60_000);
     const seconds = Math.floor((left % 60_000) / 1000);
-    note.textContent = `NEXT DESCENT IN ${[hours, minutes, seconds]
+    const label = dailyNumber(now) < 1 ? 'LAUNCHES IN' : 'NEXT DESCENT IN';
+    note.textContent = `${label} ${[hours, minutes, seconds]
       .map((value) => String(value).padStart(2, '0'))
       .join(':')}`;
   }
@@ -953,7 +962,7 @@ export class App {
   private refreshHome(): void {
     const number = dailyNumber(new Date());
     this.todayKey = dateKey();
-    el('daily-number').textContent = `#${number}`;
+    el('daily-number').textContent = number >= 1 ? `#${number}` : 'PREMIERE';
     this.updateDailyNote();
     el('stat-streak').textContent = String(this.daily.streak);
     el('stat-best').textContent = this.daily.best ? formatDepth(this.daily.best) : '—';

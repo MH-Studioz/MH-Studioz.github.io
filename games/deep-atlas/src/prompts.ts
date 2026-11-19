@@ -609,11 +609,14 @@ export function buildPinpointPrompts(count: number, seed: number, region: Region
   return prompts;
 }
 
+/** Monday 23 November 2026 is Day #1. */
+export const DAILY_LAUNCH = { year: 2026, month: 10, day: 23 } as const;
+
 export function dailyNumber(date: Date): number {
-  // 1 January 2026 is daily #1, so the number advances every local day.
-  const start = Date.UTC(2026, 0, 1);
+  const start = Date.UTC(DAILY_LAUNCH.year, DAILY_LAUNCH.month, DAILY_LAUNCH.day);
   const today = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
-  return Math.max(1, Math.floor((today - start) / 86_400_000) + 1);
+  // Not clamped: before launch this is 0 or negative, which the UI shows as a countdown.
+  return Math.floor((today - start) / 86_400_000) + 1;
 }
 
 export function dateKey(date = new Date()): string {
