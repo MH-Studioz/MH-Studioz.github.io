@@ -1,4 +1,4 @@
-import Peer from 'peerjs';
+import type Peer from 'peerjs';
 import type { DataConnection } from 'peerjs';
 import type { ClubEntry } from './club';
 import type { RegionId } from './data';
@@ -45,6 +45,16 @@ type HostMessage =
   | { type: 'error'; message: string };
 
 const MAX_CLUB_ENTRIES = 200;
+
+type PeerConstructor = typeof import('peerjs').default;
+
+let peerConstructor: Promise<PeerConstructor> | null = null;
+
+/** PeerJS is only needed for parties, so it stays out of the first load. */
+function loadPeer(): Promise<PeerConstructor> {
+  if (!peerConstructor) peerConstructor = import('peerjs').then((module) => module.default);
+  return peerConstructor;
+}
 
 function randomCode(): string {
   const values = new Uint32Array(1);
@@ -240,7 +250,8 @@ export class PartyClient {
 
   /* ---------------- internals ---------------- */
 
-  private openPeer(id?: string): Promise<Peer> {
+  private async openPeer(id?: string): Promise<Peer> {
+    const PeerCtor = await loadPeer();
     return new Promise((resolve, reject) => {
       // Public STUN only: enough for most home/mobile NATs. There is no TURN
       // relay, so a very strict carrier NAT can still fail to connect.
@@ -254,7 +265,7 @@ export class PartyClient {
           ],
         },
       };
-      const peer = id ? new Peer(id, options) : new Peer(options);
+      const peer = id ? new PeerCtor(id, options) : new PeerCtor(options);
       let settled = false;
       const timer = window.setTimeout(() => {
         if (settled) return;

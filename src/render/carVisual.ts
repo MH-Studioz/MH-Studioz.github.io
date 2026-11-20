@@ -56,7 +56,7 @@ export function loadCarTemplate(): Promise<THREE.Group | null> {
     const loader = new GLTFLoader();
     loader.setMeshoptDecoder(MeshoptDecoder);
     loader.load(
-      './assets/models/car.glb',
+      '../../assets/models/car.glb',
       (gltf) => {
         gltf.scene.traverse((o) => {
           if ((o as THREE.Mesh).isMesh) {

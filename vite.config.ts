@@ -13,9 +13,11 @@ export default defineConfig({
     chunkSizeWarningLimit: 1600,
     rollupOptions: {
       input: {
-        // The existing racing game stays at the site root.
-        main: fileURLToPath(new URL('./index.html', import.meta.url)),
-        // DEEP ATLAS lives under the games shelf: /games/deep-atlas/
+        // The site root is now a redirect to the games shelf.
+        root: fileURLToPath(new URL('./index.html', import.meta.url)),
+        // The racing game lives under the games shelf: /games/apex-gp-2026/
+        apex: fileURLToPath(new URL('./games/apex-gp-2026/index.html', import.meta.url)),
+        // DEEP ATLAS lives next to it: /games/deep-atlas/
         deepAtlas: fileURLToPath(new URL('./games/deep-atlas/index.html', import.meta.url)),
       },
     },

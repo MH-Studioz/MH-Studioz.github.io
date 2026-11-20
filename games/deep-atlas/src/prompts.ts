@@ -417,7 +417,14 @@ const GENERATORS: Gen[] = [
       const options = [...groups.entries()].filter(([, list]) => list.length >= 4);
       if (!options.length) return null;
       const [range, list] = pick(rng, options);
-      return promptFor(`peak-range-${range}`, `A mountain peak in the ${range}`, 'peak', list);
+      // "the Himalayas" but "Sicily" and "Honshu" — only ranges that read as a
+      // plural or a named chain take the article.
+      const phrase = /s$|Mountains|Range|Rift|Alps|Highlands|Himalaya|Cordillera|Sierra|Massif|Andes|Shan|Pamir|Karakoram/i.test(
+        range
+      )
+        ? `the ${range}`
+        : range;
+      return promptFor(`peak-range-${range}`, `A mountain peak in ${phrase}`, 'peak', list);
     },
   },
   {

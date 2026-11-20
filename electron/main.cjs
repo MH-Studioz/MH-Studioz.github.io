@@ -111,7 +111,7 @@ function createWindow() {
   if (DEV_SERVER_URL) {
     win.loadURL(DEV_SERVER_URL);
   } else {
-    win.loadURL('app://bundle/index.html');
+    win.loadURL('app://bundle/games/apex-gp-2026/index.html');
   }
 
   win.webContents.on('before-input-event', (event, input) => {

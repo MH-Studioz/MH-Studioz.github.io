@@ -24,6 +24,13 @@ The model is included as `public/assets/models/car.glb` and has not been modifie
 
 Included as `public/assets/audio/engine_loop.wav`.
 
+## DEEP ATLAS geography data
+
+- **Natural Earth** — https://www.naturalearthdata.com/ — public domain. River centrelines, lake outlines, country outlines and elevation points (rivers, lakes, peaks and the continent lookup) are derived from the 1:10m layers and reduced to name, coordinate and one measured metric.
+- **Wikidata** — https://www.wikidata.org/ — CC0 1.0. Island coordinates and continent assignments.
+- **Wikipedia, "List of islands by area"** — https://en.wikipedia.org/wiki/List_of_islands_by_area — CC BY-SA 4.0. Island areas are factual measurements taken from that table.
+- **GeoNames via `all-the-cities`** — https://www.geonames.org/ — CC BY 4.0. The generated city rows come from this package's dump.
+
 ## Trademarks
 
 GP 2026 is an unofficial, original project and is not associated with or endorsed by Formula One Licensing B.V., the FIA, any team, driver, championship or circuit operator. All trademarks remain the property of their respective owners.

@@ -6,8 +6,9 @@ export interface AudioState {
   brake: number;
 }
 
-const ENGINE_URL = './assets/audio/engine_loop.wav';
-const TYRE_URL = './assets/audio/tyre_screech.wav';
+// The page lives two directories deep (/games/apex-gp-2026/), public assets stay at the site root.
+const ENGINE_URL = '../../assets/audio/engine_loop.wav';
+const TYRE_URL = '../../assets/audio/tyre_screech.wav';
 
 function noiseBuffer(ctx: AudioContext, seconds: number): AudioBuffer {
   const length = Math.floor(ctx.sampleRate * seconds);

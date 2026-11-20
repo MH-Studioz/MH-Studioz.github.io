@@ -1,9 +1,3 @@
-import countriesJson from '../data/countries.json';
-import citiesJson from '../data/cities.json';
-import riversJson from '../data/rivers.json';
-import peaksJson from '../data/peaks.json';
-import islandsJson from '../data/islands.json';
-
 export type Category = 'country' | 'city' | 'river' | 'peak' | 'island' | 'lake';
 export type Continent =
   | 'Europe'
@@ -112,18 +106,37 @@ interface RawIsland {
   trap?: boolean;
 }
 
-const countries = countriesJson as unknown as RawCountry[];
-const cities = citiesJson as unknown as RawCity[];
-const rivers = riversJson as unknown as RawRiver[];
-const peaks = peaksJson as unknown as RawPeak[];
-const islands = islandsJson as unknown as RawIsland[];
+/** cities.json is stored columnar so repeated country and continent names cost nothing. */
+interface CityTable {
+  v: number;
+  continents: string[];
+  countries: string[];
+  rows: Array<Array<string | number>>;
+}
+
+function decodeCities(table: CityTable | RawCity[]): RawCity[] {
+  if (Array.isArray(table)) return table;
+  return table.rows.map((row) => ({
+    name: String(row[0]),
+    code: row[1] ? String(row[1]) : undefined,
+    country: table.countries[Number(row[2])],
+    continent: table.continents[Number(row[3])] as Continent,
+    lat: Number(row[4]),
+    lng: Number(row[5]),
+    pop: Number(row[6]),
+    elev: Number(row[7]),
+    capital: Number(row[8]) === 1,
+    trap: Number(row[9]) === 1,
+    aliases: row[10] ? String(row[10]).split('|') : undefined,
+  }));
+}
 
 export function normalize(input: string): string {
   return input
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/&/g, ' and ')
-    .replace(/['\u2019`]/g, '')
+    .replace(/['\u2019\u02bb`]/g, '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
@@ -151,137 +164,199 @@ function nameAliases(name: string, extra: string[] = []): string[] {
   return [...out];
 }
 
-const countryByName = new Map<string, RawCountry>();
-for (const c of countries) countryByName.set(normalize(c.name), c);
+/* ------------------------------------------------------------------ */
+/* Lazy atlas                                                          */
+/* ------------------------------------------------------------------ */
 
 const places: Place[] = [];
+const index = new Map<string, Place[]>();
 
-for (const c of countries) {
-  places.push({
-    id: `country-${c.id.toLowerCase()}`,
-    name: c.name,
-    aliases: c.aliases ?? [],
-    category: 'country',
-    continent: c.continent,
-    lat: c.lat,
-    lng: c.lng,
-    metric: c.population,
-    metricLabel: 'POP',
-    trap: c.isTouristTrap,
-    fame: 0,
-    country: c.name,
-    population: c.population,
-    area: c.area,
-    landlocked: c.landlocked,
-    island: c.island,
-    borders: c.borders,
-    hemisphere: c.hemisphere,
-    capitalName: c.capital,
-  });
-}
-
-for (const c of cities) {
-  const parent = countryByName.get(normalize(c.country));
-  places.push({
-    id: `city-${slug(c.name)}${c.code ? `-${c.code.toLowerCase()}` : ''}`,
-    name: c.name,
-    aliases: nameAliases(c.name, c.aliases ?? []),
-    category: 'city',
-    continent: c.continent,
-    lat: c.lat,
-    lng: c.lng,
-    metric: c.pop,
-    metricLabel: 'POP',
-    trap: Boolean(c.trap),
-    fame: 0,
-    country: c.country,
-    countryIsland: parent?.island ?? false,
-    population: c.pop,
-    elevation: c.elev,
-    isCapital: Boolean(c.capital),
-  });
-}
-
-for (const r of rivers) {
-  places.push({
-    id: `river-${slug(r.name)}`,
-    name: r.name,
-    aliases: r.aliases ?? [],
-    category: 'river',
-    continent: r.continent,
-    lat: r.lat,
-    lng: r.lng,
-    metric: r.length,
-    metricLabel: 'LENGTH',
-    trap: Boolean(r.trap),
-    fame: 0,
-    length: r.length,
-    outflow: r.outflow,
-  });
-}
-
-for (const p of peaks) {
-  places.push({
-    id: `peak-${slug(p.name)}`,
-    name: p.name,
-    aliases: nameAliases(p.name, p.aliases ?? []),
-    category: 'peak',
-    continent: p.continent,
-    lat: p.lat,
-    lng: p.lng,
-    metric: p.elevation,
-    metricLabel: 'ELEV',
-    trap: Boolean(p.trap),
-    fame: 0,
-    elevation: p.elevation,
-    range: p.range,
-  });
-}
-
-for (const i of islands) {
-  places.push({
-    id: `${i.kind}-${slug(i.name)}`,
-    name: i.name,
-    aliases: i.aliases ?? [],
-    category: i.kind,
-    continent: i.continent,
-    lat: i.lat,
-    lng: i.lng,
-    metric: i.area,
-    metricLabel: 'AREA',
-    trap: Boolean(i.trap),
-    fame: 0,
-    area: i.area,
-    kind: i.kind,
-  });
-}
-
-// Fame = percentile of the entry's metric inside its own category (1 = most famous).
-for (const category of ['country', 'city', 'river', 'peak', 'island', 'lake'] as Category[]) {
-  const group = places.filter((p) => p.category === category).sort((a, b) => a.metric - b.metric);
-  const last = Math.max(1, group.length - 1);
-  group.forEach((p, i) => {
-    p.fame = i / last;
-  });
-}
-
+/**
+ * Empty until loadAtlas() resolves. Keeping the dataset behind dynamic imports
+ * means the home screen paints from the small app chunk while the multi-hundred
+ * kilobyte geography tables stream in behind it.
+ */
 export const ALL_PLACES: readonly Place[] = places;
 
 export const DATASET_COUNTS = {
-  countries: countries.length,
-  cities: cities.length,
-  rivers: rivers.length,
-  peaks: peaks.length,
-  islands: islands.filter((i) => i.kind === 'island').length,
-  lakes: islands.filter((i) => i.kind === 'lake').length,
-  total: places.length,
+  countries: 0,
+  cities: 0,
+  rivers: 0,
+  peaks: 0,
+  islands: 0,
+  lakes: 0,
+  total: 0,
 };
+
+let atlasLoaded = false;
+let atlasPromise: Promise<void> | null = null;
+
+export function isAtlasLoaded(): boolean {
+  return atlasLoaded;
+}
+
+export function loadAtlas(): Promise<void> {
+  if (atlasPromise) return atlasPromise;
+  atlasPromise = (async () => {
+    const [countriesJson, citiesJson, riversJson, peaksJson, islandsJson, lakesJson] = await Promise.all([
+      import('../data/countries.json'),
+      import('../data/cities.json'),
+      import('../data/rivers.json'),
+      import('../data/peaks.json'),
+      import('../data/islands.json'),
+      import('../data/lakes.json'),
+    ]);
+
+    const countries = countriesJson.default as unknown as RawCountry[];
+    const cities = decodeCities(citiesJson.default as unknown as CityTable | RawCity[]);
+    const rivers = riversJson.default as unknown as RawRiver[];
+    const peaks = peaksJson.default as unknown as RawPeak[];
+    const islands = islandsJson.default as unknown as RawIsland[];
+    const lakes = lakesJson.default as unknown as RawIsland[];
+
+    buildAtlas(countries, cities, rivers, peaks, islands, lakes);
+
+    DATASET_COUNTS.countries = countries.length;
+    DATASET_COUNTS.cities = cities.length;
+    DATASET_COUNTS.rivers = rivers.length;
+    DATASET_COUNTS.peaks = peaks.length;
+    DATASET_COUNTS.islands = islands.length;
+    DATASET_COUNTS.lakes = lakes.length;
+    DATASET_COUNTS.total = places.length;
+    atlasLoaded = true;
+  })();
+  return atlasPromise;
+}
+
+function buildAtlas(
+  countries: RawCountry[],
+  cities: RawCity[],
+  rivers: RawRiver[],
+  peaks: RawPeak[],
+  islands: RawIsland[],
+  lakes: RawIsland[]
+): void {
+  const countryByName = new Map<string, RawCountry>();
+  for (const c of countries) countryByName.set(normalize(c.name), c);
+
+  for (const c of countries) {
+    places.push({
+      id: `country-${c.id.toLowerCase()}`,
+      name: c.name,
+      aliases: c.aliases ?? [],
+      category: 'country',
+      continent: c.continent,
+      lat: c.lat,
+      lng: c.lng,
+      metric: c.population,
+      metricLabel: 'POP',
+      trap: c.isTouristTrap,
+      fame: 0,
+      country: c.name,
+      population: c.population,
+      area: c.area,
+      landlocked: c.landlocked,
+      island: c.island,
+      borders: c.borders,
+      hemisphere: c.hemisphere,
+      capitalName: c.capital,
+    });
+  }
+
+  for (const c of cities) {
+    const parent = countryByName.get(normalize(c.country));
+    places.push({
+      id: `city-${slug(c.name)}${c.code ? `-${c.code.toLowerCase()}` : ''}`,
+      name: c.name,
+      aliases: nameAliases(c.name, c.aliases ?? []),
+      category: 'city',
+      continent: c.continent,
+      lat: c.lat,
+      lng: c.lng,
+      metric: c.pop,
+      metricLabel: 'POP',
+      trap: Boolean(c.trap),
+      fame: 0,
+      country: c.country,
+      countryIsland: parent?.island ?? false,
+      population: c.pop,
+      elevation: c.elev,
+      isCapital: Boolean(c.capital),
+    });
+  }
+
+  for (const r of rivers) {
+    places.push({
+      id: `river-${slug(r.name)}`,
+      name: r.name,
+      aliases: r.aliases ?? [],
+      category: 'river',
+      continent: r.continent,
+      lat: r.lat,
+      lng: r.lng,
+      metric: r.length,
+      metricLabel: 'LENGTH',
+      trap: Boolean(r.trap),
+      fame: 0,
+      length: r.length,
+      outflow: r.outflow,
+    });
+  }
+
+  for (const p of peaks) {
+    places.push({
+      id: `peak-${slug(p.name)}`,
+      name: p.name,
+      aliases: nameAliases(p.name, p.aliases ?? []),
+      category: 'peak',
+      continent: p.continent,
+      lat: p.lat,
+      lng: p.lng,
+      metric: p.elevation,
+      metricLabel: 'ELEV',
+      trap: Boolean(p.trap),
+      fame: 0,
+      elevation: p.elevation,
+      range: p.range,
+    });
+  }
+
+  for (const i of [...islands, ...lakes]) {
+    places.push({
+      id: `${i.kind}-${slug(i.name)}`,
+      name: i.name,
+      aliases: i.aliases ?? [],
+      category: i.kind,
+      continent: i.continent,
+      lat: i.lat,
+      lng: i.lng,
+      metric: i.area,
+      metricLabel: 'AREA',
+      trap: Boolean(i.trap),
+      fame: 0,
+      area: i.area,
+      kind: i.kind,
+    });
+  }
+
+  // Fame = percentile of the entry's metric inside its own category (1 = most famous).
+  for (const category of ['country', 'city', 'river', 'peak', 'island', 'lake'] as Category[]) {
+    const group = places.filter((p) => p.category === category).sort((a, b) => a.metric - b.metric);
+    const last = Math.max(1, group.length - 1);
+    group.forEach((p, i) => {
+      p.fame = i / last;
+    });
+  }
+
+  for (const place of places) {
+    addKey(normalize(place.name), place);
+    for (const alias of place.aliases) addKey(normalize(alias), place);
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /* Search                                                              */
 /* ------------------------------------------------------------------ */
-
-const index = new Map<string, Place[]>();
 
 function addKey(key: string, place: Place): void {
   if (!key) return;
@@ -291,11 +366,6 @@ function addKey(key: string, place: Place): void {
   } else {
     index.set(key, [place]);
   }
-}
-
-for (const place of places) {
-  addKey(normalize(place.name), place);
-  for (const alias of place.aliases) addKey(normalize(alias), place);
 }
 
 function levenshtein(a: string, b: string, max: number): number {
@@ -507,9 +577,9 @@ export function statLine(place: Place): string {
     case 'city':
       return `${compact(place.population ?? 0)} people · ${place.country ?? '—'} · ${formatNumber(place.elevation ?? 0)} m elevation`;
     case 'river':
-      return `${formatNumber(place.length ?? 0)} km · flows into ${place.outflow ?? '—'}`;
+      return `${formatNumber(place.length ?? 0)} km${place.outflow ? ` · flows into ${place.outflow}` : ''}`;
     case 'peak':
-      return `${formatNumber(place.elevation ?? 0)} m · ${place.range ?? '—'}`;
+      return `${formatNumber(place.elevation ?? 0)} m${place.range ? ` · ${place.range}` : ''}`;
     case 'island':
     case 'lake':
       return `${formatNumber(place.area ?? 0, 2)} km² · ${place.continent}`;

@@ -1,6 +1,6 @@
 import type { LonLat, TrackCatalog, TrackFeature } from './types';
 
-export const TRACK_GEOJSON_URL = './assets/tracks/circuits.geojson';
+export const TRACK_GEOJSON_URL = '../../assets/tracks/circuits.geojson';
 
 interface RawGeoJSON {
   type: string;

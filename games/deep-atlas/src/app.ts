@@ -3,6 +3,8 @@ import {
   categoryLabel,
   formatDepth,
   formatNumber,
+  isAtlasLoaded,
+  loadAtlas,
   statLine,
   type RegionId,
 } from './data';
@@ -241,6 +243,9 @@ export class App {
   private difficulty: DifficultyId = 'normal';
   private study = false;
   private todayKey = dateKey();
+  /** The dataset streams in behind the home screen; a start waits for it. */
+  private atlasReady = false;
+  private pendingPartyRound: PartyRound | null = null;
 
   constructor() {
     this.sound = new SoundEngine(this.readMuted());
@@ -293,6 +298,25 @@ export class App {
       bootEl?.classList.add('done');
       window.setTimeout(() => bootEl?.remove(), 700);
     }, 420);
+  }
+
+  /** Pulls the geography tables in after first paint, then fills the panels. */
+  async loadAtlasData(): Promise<void> {
+    if (isAtlasLoaded()) return;
+    try {
+      await loadAtlas();
+    } catch {
+      this.toast('ATLAS DATA FAILED TO LOAD — RELOAD THE PAGE');
+      return;
+    }
+    this.atlasReady = true;
+    this.refreshHome();
+    this.updateModeInfo();
+    if (this.pendingPartyRound) {
+      const round = this.pendingPartyRound;
+      this.pendingPartyRound = null;
+      this.beginPartyRound(round);
+    }
   }
 
   /* ---------------- setup ---------------- */
@@ -558,6 +582,10 @@ export class App {
     seedOverride?: number,
     secondsOverride?: number
   ): void {
+    if (!this.atlasReady) {
+      this.toast('PLOTTING ATLAS — ONE MOMENT');
+      return;
+    }
     this.sound.unlock();
     this.activeMode = mode;
     if (mode !== 'party') this.mode = mode;
@@ -587,16 +615,21 @@ export class App {
     const seed =
       seedOverride ??
       (mode === 'daily' ? hashSeed(`${dateKey()}-deep-atlas`) : Math.floor(Math.random() * 0xffffffff));
+    const seconds = secondsOverride ?? this.difficultySeconds();
     const config: RoundConfig = {
       mode,
       region,
       seed,
       number: mode === 'daily' ? Math.max(1, dailyNumber(new Date())) : 0,
-      seconds: secondsOverride ?? this.difficultySeconds(),
+      seconds,
     };
 
+    // A party guest runs the host's clock, so label it with the host's difficulty
+    // rather than whatever this browser has saved.
+    const secondsLabel =
+      DIFFICULTIES.find((difficulty) => difficulty.seconds === seconds)?.label ?? this.difficultyLabel();
     const modeDef = MODE_BY_ID.get(mode) ?? MODES[0];
-    el('hud-mode').textContent = `${modeDef.tag} · ${this.difficultyLabel()}`;
+    el('hud-mode').textContent = `${modeDef.tag} · ${secondsLabel}`;
     el('time-bank').hidden = mode !== 'endless';
 
     this.game.start(config);
@@ -970,8 +1003,12 @@ export class App {
     const record = Object.values(this.records).reduce((max, value) => Math.max(max, value), 0);
     el('stat-record').textContent = record ? formatDepth(record) : '—';
 
-    el('dataset-line').innerHTML = `${DATASET_COUNTS.total} places · ${DATASET_COUNTS.countries} countries<br>${DATASET_COUNTS.cities} cities · ${DATASET_COUNTS.rivers} rivers · ${DATASET_COUNTS.peaks} peaks<br>${DATASET_COUNTS.islands} islands · ${DATASET_COUNTS.lakes} lakes`;
-    el('foot-dataset').textContent = `${DATASET_COUNTS.total} PLACES CHARTED`;
+    el('dataset-line').innerHTML =
+      DATASET_COUNTS.total > 0
+        ? `${DATASET_COUNTS.total} places · ${DATASET_COUNTS.countries} countries<br>${DATASET_COUNTS.cities} cities · ${DATASET_COUNTS.rivers} rivers · ${DATASET_COUNTS.peaks} peaks<br>${DATASET_COUNTS.islands} islands · ${DATASET_COUNTS.lakes} lakes`
+        : 'LOADING ATLAS…';
+    el('foot-dataset').textContent =
+      DATASET_COUNTS.total > 0 ? `${DATASET_COUNTS.total} PLACES CHARTED` : '— PLACES CHARTED';
     el('time-bank').hidden = true;
   }
 
@@ -1092,6 +1129,11 @@ export class App {
     el('party-strip').hidden = false;
     el('party-code-chip').textContent = `#${this.party.lobby?.code ?? ''}`;
     this.handlePartyScores(this.party.lobby?.players ?? []);
+    if (!this.atlasReady) {
+      // A guest can be told to start while its atlas is still streaming in.
+      this.pendingPartyRound = round;
+      return;
+    }
     this.start('party', 'world', round.seed, round.seconds);
   }
 
@@ -1356,5 +1398,6 @@ export function boot(): void {
   const app = new App();
   (window as unknown as { deepAtlas?: App }).deepAtlas = app;
   const foot = document.getElementById('foot-dataset');
-  if (foot) foot.title = `${DATASET_COUNTS.total} bundled geographic entries`;
+  if (foot) foot.title = 'Bundled geographic entries';
+  void app.loadAtlasData();
 }
