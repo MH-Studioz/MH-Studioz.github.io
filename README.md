@@ -2,7 +2,7 @@
 
 A racing simulator with open-wheel, GT, prototype, hypercar, stock and kart classes plus two gravel rally stages, built with TypeScript, Vite and Three.js. It runs in the browser and as a Windows desktop app.
 
-**Play:** https://mh-studioz.github.io/apex-gp-2026/games/ — the games shelf, linking **GP 2026** and **DEEP ATLAS**. The site root redirects to it.
+**Play:** https://mh-studioz.github.io/games/ — the games shelf, linking **GP 2026** and **DEEP ATLAS**. The site root redirects to it.
 
 **Beta v0.2:** browser build on GitHub Pages, plus Windows NSIS and portable EXE assets on the GitHub release.
 
