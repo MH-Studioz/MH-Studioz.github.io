@@ -15,6 +15,8 @@ export default defineConfig({
       input: {
         // The site root is now a redirect to the games shelf.
         root: fileURLToPath(new URL('./index.html', import.meta.url)),
+        // The shelf page that links both games: /games/
+        gamesHub: fileURLToPath(new URL('./games/index.html', import.meta.url)),
         // The racing game lives under the games shelf: /games/apex-gp-2026/
         apex: fileURLToPath(new URL('./games/apex-gp-2026/index.html', import.meta.url)),
         // DEEP ATLAS lives next to it: /games/deep-atlas/

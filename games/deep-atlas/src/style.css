@@ -416,6 +416,7 @@ kbd {
   cursor: pointer;
   transition: all 0.18s ease;
   white-space: nowrap;
+  text-decoration: none;
 }
 
 .btn:focus-visible {

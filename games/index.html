@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#04080c" />
+    <meta
+      name="description"
+      content="Two games from MH Studioz: DEEP ATLAS, the geography rarity engine, and GP 2026, the racing simulator."
+    />
+    <title>GAMES — DEEP ATLAS &amp; GP 2026</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2305080c'/%3E%3Cpath d='M16 16h32M16 32h32M16 48h32M16 16v32M32 16v32M48 16v32' stroke='%2331e6c4' stroke-width='2' opacity='.8'/%3E%3Ccircle cx='32' cy='32' r='6' fill='%23ffb347'/%3E%3C/svg%3E"
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="GAMES — DEEP ATLAS &amp; GP 2026" />
+    <meta
+      property="og:description"
+      content="DEEP ATLAS: name the most obscure real places on Earth. GP 2026: open-wheel, GT and rally racing. Two games, no accounts, no keys."
+    />
+    <meta property="og:url" content="https://mh-studioz.github.io/apex-gp-2026/games/" />
+    <meta property="og:image" content="https://mh-studioz.github.io/apex-gp-2026/assets/og/games.jpg" />
+    <meta property="og:image:width" content="1392" />
+    <meta property="og:image:height" content="752" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <style>
+      :root {
+        --ink: #e9f3f7;
+        --dim: #8fa9b8;
+        --faint: #5d7484;
+        --cyan: #31e6c4;
+        --amber: #ffb347;
+        --red: #e10600;
+        --line: rgba(160, 200, 220, 0.13);
+        --glass: rgba(255, 255, 255, 0.035);
+        --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        min-height: 100%;
+      }
+
+      body {
+        margin: 0;
+        background: #04080c;
+        color: var(--ink);
+        font-family: var(--sans);
+        -webkit-font-smoothing: antialiased;
+        overflow-x: hidden;
+      }
+
+      .grid-lines,
+      .glow {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+      }
+
+      .grid-lines {
+        background-image:
+          linear-gradient(var(--line) 1px, transparent 1px),
+          linear-gradient(90deg, var(--line) 1px, transparent 1px);
+        background-size: 88px 88px;
+        mask-image: radial-gradient(ellipse 90% 70% at 50% 30%, #000 20%, transparent 78%);
+        opacity: 0.5;
+      }
+
+      .glow {
+        background:
+          radial-gradient(ellipse 60% 45% at 18% 8%, rgba(49, 230, 196, 0.16), transparent 70%),
+          radial-gradient(ellipse 55% 45% at 88% 18%, rgba(225, 6, 0, 0.13), transparent 70%),
+          radial-gradient(ellipse 80% 60% at 50% 110%, rgba(255, 179, 71, 0.08), transparent 70%);
+      }
+
+      .shelf {
+        position: relative;
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: clamp(20px, 4vw, 44px) clamp(18px, 4vw, 40px) 48px;
+        display: flex;
+        min-height: 100vh;
+        flex-direction: column;
+        gap: clamp(26px, 4vw, 44px);
+      }
+
+      .shelf-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-family: var(--mono);
+        font-size: 13px;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+      }
+
+      .brand-mark {
+        width: 38px;
+        height: 38px;
+        display: grid;
+        place-items: center;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        background: var(--glass);
+        color: var(--cyan);
+        font-size: 13px;
+        letter-spacing: 0.04em;
+      }
+
+      .brand small {
+        display: block;
+        color: var(--faint);
+        font-size: 9px;
+        letter-spacing: 0.28em;
+        margin-top: 4px;
+      }
+
+      .shelf-tag {
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.2em;
+        color: var(--dim);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 8px 14px;
+        background: var(--glass);
+      }
+
+      .intro {
+        max-width: 720px;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.26em;
+        color: var(--cyan);
+        text-transform: uppercase;
+      }
+
+      .eyebrow::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+        box-shadow: 0 0 12px currentColor;
+      }
+
+      h1 {
+        margin: 16px 0 12px;
+        font-size: clamp(38px, 7vw, 74px);
+        line-height: 0.92;
+        letter-spacing: -0.03em;
+        text-transform: uppercase;
+        font-weight: 800;
+      }
+
+      h1 em {
+        font-style: normal;
+        color: var(--cyan);
+        text-shadow: 0 0 34px rgba(49, 230, 196, 0.35);
+      }
+
+      .intro p {
+        margin: 0;
+        max-width: 58ch;
+        color: var(--dim);
+        font-size: clamp(14px, 1.5vw, 16px);
+        line-height: 1.65;
+      }
+
+      .cards {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: clamp(14px, 2vw, 22px);
+        flex: 1;
+      }
+
+      .card {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        padding: clamp(20px, 2.6vw, 30px);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background:
+          linear-gradient(160deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.012) 55%),
+          rgba(4, 8, 12, 0.54);
+        color: inherit;
+        text-decoration: none;
+        overflow: hidden;
+        isolation: isolate;
+        transition: transform 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease;
+      }
+
+      .card::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        background: radial-gradient(ellipse 80% 60% at 20% 0%, var(--accent-soft), transparent 70%);
+        opacity: 0.55;
+        transition: opacity 0.35s ease;
+      }
+
+      .card:hover,
+      .card:focus-visible {
+        transform: translateY(-4px);
+        border-color: var(--accent-line);
+        box-shadow: 0 30px 60px -30px var(--accent-soft), 0 0 0 1px var(--accent-line) inset;
+        outline: none;
+      }
+
+      .card:hover::after {
+        opacity: 1;
+      }
+
+      .card.atlas {
+        --accent: var(--cyan);
+        --accent-soft: rgba(49, 230, 196, 0.16);
+        --accent-line: rgba(49, 230, 196, 0.45);
+      }
+
+      .card.apex {
+        --accent: var(--red);
+        --accent-soft: rgba(225, 6, 0, 0.18);
+        --accent-line: rgba(225, 6, 0, 0.45);
+      }
+
+      .card-top {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.2em;
+        color: var(--faint);
+        text-transform: uppercase;
+      }
+
+      .card-top b {
+        color: var(--accent);
+        font-weight: 500;
+      }
+
+      .card h2 {
+        margin: 4px 0 0;
+        font-size: clamp(26px, 3.4vw, 40px);
+        line-height: 1;
+        letter-spacing: -0.02em;
+        text-transform: uppercase;
+      }
+
+      .card p {
+        margin: 0;
+        color: var(--dim);
+        line-height: 1.6;
+        font-size: 14px;
+        max-width: 44ch;
+      }
+
+      .facts {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 2px 0 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .facts li {
+        font-family: var(--mono);
+        font-size: 9.5px;
+        letter-spacing: 0.14em;
+        color: var(--dim);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 5px 10px;
+        text-transform: uppercase;
+      }
+
+      .card-foot {
+        margin-top: auto;
+        padding-top: 20px;
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .status {
+        font-family: var(--mono);
+        font-size: 10px;
+        letter-spacing: 0.16em;
+        color: var(--faint);
+        text-transform: uppercase;
+        line-height: 1.7;
+      }
+
+      .status b {
+        color: var(--accent);
+        font-weight: 500;
+      }
+
+      .cta {
+        font-family: var(--mono);
+        font-size: 11px;
+        letter-spacing: 0.18em;
+        color: var(--accent);
+        text-transform: uppercase;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        white-space: nowrap;
+      }
+
+      .cta span {
+        transition: transform 0.3s ease;
+      }
+
+      .card:hover .cta span {
+        transform: translateX(4px);
+      }
+
+      .shelf-foot {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 18px;
+        align-items: center;
+        justify-content: space-between;
+        border-top: 1px solid var(--line);
+        padding-top: 18px;
+        font-family: var(--mono);
+        font-size: 9.5px;
+        letter-spacing: 0.18em;
+        color: var(--faint);
+        text-transform: uppercase;
+      }
+
+      .shelf-foot a {
+        color: var(--dim);
+        text-decoration: none;
+      }
+
+      .shelf-foot a:hover {
+        color: var(--cyan);
+      }
+
+      @media (max-width: 760px) {
+        .cards {
+          grid-template-columns: 1fr;
+        }
+
+        .shelf {
+          gap: 24px;
+        }
+
+        .card p {
+          font-size: 13.5px;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .card,
+        .cta span {
+          transition: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="grid-lines" aria-hidden="true"></div>
+    <div class="glow" aria-hidden="true"></div>
+
+    <main class="shelf">
+      <header class="shelf-head">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">MH</span>
+          <span>GAMES<small>MH STUDIOZ SHELF</small></span>
+        </div>
+        <span class="shelf-tag">TWO TITLES · NO ACCOUNTS · NO KEYS</span>
+      </header>
+
+      <section class="intro">
+        <span class="eyebrow">PICK A DESCENT</span>
+        <h1>Choose your<br /><em>next session.</em></h1>
+        <p>
+          One is about the planet, one is about the lap. Both run entirely in the browser, need no
+          sign-in and keep your scores on your own device.
+        </p>
+      </section>
+
+      <div class="cards">
+        <a class="card atlas" href="./deep-atlas/">
+          <div class="card-top"><span>01 / GEOGRAPHY</span><b id="atlas-state">PREMIERE</b></div>
+          <h2>Deep Atlas</h2>
+          <p>
+            Seven timed prompts per round. Name the most obscure real place that fits, drill through
+            the crust and watch famous answers pay almost nothing.
+          </p>
+          <ul class="facts">
+            <li>7,970 places</li>
+            <li>3 clocks</li>
+            <li>Daily 7</li>
+            <li>Party</li>
+          </ul>
+          <div class="card-foot">
+            <span class="status" id="atlas-status">DAY #1 · MON 23 NOV<br />LOCAL MIDNIGHT</span>
+            <span class="cta">Enter the atlas <span aria-hidden="true">→</span></span>
+          </div>
+        </a>
+
+        <a class="card apex" href="./apex-gp-2026/">
+          <div class="card-top"><span>02 / RACING</span><b>BETA 0.2</b></div>
+          <h2>GP 2026</h2>
+          <p>
+            Open-wheel, GT, prototype, hypercar, stock and kart classes plus gravel rally stages.
+            Build the car, pick the circuit, set the weather and find the limit.
+          </p>
+          <ul class="facts">
+            <li>41 circuits</li>
+            <li>8 cars</li>
+            <li>2 rally stages</li>
+            <li>Private party</li>
+          </ul>
+          <div class="card-foot">
+            <span class="status">BROWSER BUILD<br />WINDOWS EXE ON RELEASE</span>
+            <span class="cta">Open the paddock <span aria-hidden="true">→</span></span>
+          </div>
+        </a>
+      </div>
+
+      <footer class="shelf-foot">
+        <span>NO SIGN-IN · SCORES STAY LOCAL</span>
+        <span>DEEP ATLAS DAILY SEED · LOCAL MIDNIGHT</span>
+        <a href="../">SITE ROOT →</a>
+      </footer>
+    </main>
+
+    <script>
+      // Same epoch as the game: Monday 23 November 2026 is Day #1 locally.
+      (function () {
+        var launch = new Date(2026, 10, 23);
+        function pad(n) {
+          return String(n).padStart(2, '0');
+        }
+        function tick() {
+          var now = new Date();
+          var state = document.getElementById('atlas-state');
+          var status = document.getElementById('atlas-status');
+          if (!state || !status) return;
+          var days = Math.floor(
+            (Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) -
+              Date.UTC(2026, 10, 23)) /
+              86400000
+          );
+          if (days < 0) {
+            var left = Math.max(0, launch.getTime() - now.getTime());
+            var h = Math.floor(left / 3600000);
+            var m = Math.floor((left % 3600000) / 60000);
+            var s = Math.floor((left % 60000) / 1000);
+            state.textContent = 'PREMIERE';
+            status.innerHTML =
+              'DAY #1 IN <b>' + pad(h) + ':' + pad(m) + ':' + pad(s) + '</b><br />MON 23 NOV · LOCAL MIDNIGHT';
+          } else {
+            state.textContent = 'DAY #' + (days + 1) + ' LIVE';
+            status.innerHTML =
+              'TODAY’S DESCENT IS UP<br />NEXT ONE AT LOCAL MIDNIGHT';
+          }
+        }
+        tick();
+        setInterval(tick, 1000);
+      })();
+    </script>
+  </body>
+</html>

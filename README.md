@@ -2,7 +2,7 @@
 
 A racing simulator with open-wheel, GT, prototype, hypercar, stock and kart classes plus two gravel rally stages, built with TypeScript, Vite and Three.js. It runs in the browser and as a Windows desktop app.
 
-**Play:** https://mh-studioz.github.io/apex-gp-2026/games/apex-gp-2026/ (the site root redirects there)
+**Play:** https://mh-studioz.github.io/apex-gp-2026/games/ — the games shelf, linking **GP 2026** and **DEEP ATLAS**. The site root redirects to it.
 
 **Beta v0.2:** browser build on GitHub Pages, plus Windows NSIS and portable EXE assets on the GitHub release.
 
@@ -66,7 +66,7 @@ npm run build
 
 The production bundle uses relative asset paths and is written to `dist/`.
 
-Both games build from the `games/` shelf: `npm run dev` serves the racing game at `http://127.0.0.1:5173/games/apex-gp-2026/` and DEEP ATLAS at `http://127.0.0.1:5173/games/deep-atlas/`. The site root is a redirect page to the racing game, matching GitHub Pages, and `desktop:build` packages the same nested entries.
+Both games build from the `games/` shelf: `npm run dev` serves the shelf at `http://127.0.0.1:5173/games/`, the racing game at `http://127.0.0.1:5173/games/apex-gp-2026/` and DEEP ATLAS at `http://127.0.0.1:5173/games/deep-atlas/`. The site root is a redirect page to the shelf, matching GitHub Pages, and `desktop:build` packages the same nested entries.
 
 ### Windows desktop
 
@@ -96,7 +96,7 @@ src/
   tracks/      GeoJSON loading and track maths
   ui/          driver hub, race builder, garage, HUD, minimap, pause, multiplayer
 electron/      desktop main process and preload
-games/         apex-gp-2026/ (racing game page) and deep-atlas/ (geography game)
+games/         index.html (shelf), apex-gp-2026/ (racing game) and deep-atlas/ (geography game)
 public/        circuits, car model and audio
 ```
 
