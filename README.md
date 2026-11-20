@@ -2,7 +2,7 @@
 
 A racing simulator with open-wheel, GT, prototype, hypercar, stock and kart classes plus two gravel rally stages, built with TypeScript, Vite and Three.js. It runs in the browser and as a Windows desktop app.
 
-**Play:** https://mh-studioz.github.io/games/ — the games shelf, linking **GP 2026** and **DEEP ATLAS**. The site root redirects to it.
+**Play:** https://mh-studioz.github.io/games/ — the games shelf, linking **GP 2026** and **DEEP ATLAS**. The site root redirects to it. The repository is published as `MH-Studioz.github.io`, so the site sits at the domain root rather than under a project prefix.
 
 **Beta v0.2:** browser build on GitHub Pages, plus Windows NSIS and portable EXE assets on the GitHub release.
 
@@ -81,7 +81,9 @@ The current beta release is tagged `v0.1.0-beta.2` and publishes `GP2026-0.1.0-b
 
 ## Deployment
 
-`.github/workflows/deploy.yml` builds and publishes `dist/` to GitHub Pages on every push to `main`. Enable **Settings → Pages → Source: GitHub Actions** once for the repository.
+`.github/workflows/deploy.yml` builds and publishes `dist/` to GitHub Pages on every push to `main`, at **https://mh-studioz.github.io/** — the repo is `MH-Studioz.github.io`, so Pages serves `/games/` instead of a `/repository/` prefix. Enable **Settings → Pages → Source: GitHub Actions** once for the repository.
+
+Old `mh-studioz.github.io/apex-gp-2026/...` links return `public/404.html`, which forwards them to the matching new path (`/games/`, `/games/deep-atlas/`, `/games/apex-gp-2026/` or `/assets/...`).
 
 ## Project layout
 
@@ -97,7 +99,7 @@ src/
   ui/          driver hub, race builder, garage, HUD, minimap, pause, multiplayer
 electron/      desktop main process and preload
 games/         index.html (shelf), apex-gp-2026/ (racing game) and deep-atlas/ (geography game)
-public/        circuits, car model and audio
+public/        circuits, car model, audio, share images and the 404 forwarder
 ```
 
 ## Credits
