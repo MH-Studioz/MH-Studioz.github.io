@@ -2,7 +2,7 @@
 
 A racing simulator with open-wheel, GT, prototype, hypercar, stock and kart classes plus two gravel rally stages, built with TypeScript, Vite and Three.js. It runs in the browser and as a Windows desktop app.
 
-**Play:** https://mh-studioz.github.io/apex-gp-2026/
+**Play:** https://mh-studioz.github.io/apex-gp-2026/games/apex-gp-2026/ (the site root redirects there)
 
 **Beta v0.2:** browser build on GitHub Pages, plus Windows NSIS and portable EXE assets on the GitHub release.
 
@@ -35,7 +35,7 @@ A racing simulator with open-wheel, GT, prototype, hypercar, stock and kart clas
 
 ## DEEP ATLAS
 
-The site also hosts **DEEP ATLAS**, a self-contained geography rarity game at [`/deep-atlas/`](deep-atlas/): seven timed prompts per round, five modes, a 769-entry bundled geography database, typo-tolerant answers, inverse-rarity depth scoring and a shareable emoji scorecard. It uses Leaflet with CARTO Dark Matter tiles and needs no API keys. It is built as a second Vite page by `npm run build`; open `http://127.0.0.1:5173/deep-atlas/` while developing.
+The site also hosts **DEEP ATLAS**, a self-contained geography rarity game at [`/games/deep-atlas/`](games/deep-atlas/): seven timed prompts per round, five modes plus a private party, three difficulty clocks, typo-tolerant answers, inverse-rarity depth scoring and a shareable emoji scorecard. The bundled database holds 7,970 places — 195 countries, 5,082 cities, 1,060 rivers, 744 lakes, 627 peaks and 262 islands — and needs no API keys. The atlas is loaded after first paint, so the home screen appears from a small entry chunk while the geography tables stream in behind it. It is built as a second Vite page by `npm run build`; open `http://127.0.0.1:5173/games/deep-atlas/` while developing.
 
 ## Controls
 
@@ -66,6 +66,8 @@ npm run build
 
 The production bundle uses relative asset paths and is written to `dist/`.
 
+Both games build from the `games/` shelf: `npm run dev` serves the racing game at `http://127.0.0.1:5173/games/apex-gp-2026/` and DEEP ATLAS at `http://127.0.0.1:5173/games/deep-atlas/`. The site root is a redirect page to the racing game, matching GitHub Pages, and `desktop:build` packages the same nested entries.
+
 ### Windows desktop
 
 ```bash
@@ -94,6 +96,7 @@ src/
   tracks/      GeoJSON loading and track maths
   ui/          driver hub, race builder, garage, HUD, minimap, pause, multiplayer
 electron/      desktop main process and preload
+games/         apex-gp-2026/ (racing game page) and deep-atlas/ (geography game)
 public/        circuits, car model and audio
 ```
 
