@@ -80,7 +80,7 @@ A circuit-recognition game at [`/games/trace/`](games/trace/): one unlabeled cen
 - **Three difficulties** — ROOKIE, PRO and LEGEND, which rotates and flips the line — changing guesses, clock, country hint and score multiplier. Answers are typo-tolerant and accept city and short-name aliases.
 - **Results** copy out as an emoji share grid; streak and best-run records stay in `localStorage`.
 
-The schematic outlines are hand-traced from the real layouts and normalised to a common box; `scripts/gen-trace-circuits.mjs` rebuilds `games/trace/data/circuits.json` from the GPS GeoJSON plus those traces. **TRACE 1.0** is tagged `trace-v1` and ships as the Pages build — there are no downloadable assets, the browser game is the release.
+The schematic outlines are hand-traced from the real layouts and normalised to a common box; `scripts/gen-trace-circuits.mjs` rebuilds `games/trace/data/circuits.json` from the GPS GeoJSON plus those traces. **TRACE 1.0** is tagged `trace-v1`, and the current build is the 1.0.1 bug-fix pass tagged `trace-v1.0.1`. Both ship as the Pages build — there are no downloadable assets, the browser game is the release.
 
 ## Development
 
@@ -114,7 +114,7 @@ npm run desktop:dev
 npm run desktop:build
 ```
 
-`desktop:build` writes the NSIS installer and a portable `.exe` to `release/`. GP 2026 is in beta: the shelf labels it BETA 0.2, the release tagged `v0.1.0-beta.2` carries `GP2026-0.1.0-beta.2-setup.exe` and `GP2026-0.1.0-beta.2-portable.exe`, and TRACE 1.0 is the release tagged `trace-v1`.
+`desktop:build` writes the NSIS installer and a portable `.exe` to `release/`. GP 2026 is in beta: the shelf labels it BETA 0.2, the release tagged `v0.1.0-beta.2` carries `GP2026-0.1.0-beta.2-setup.exe` and `GP2026-0.1.0-beta.2-portable.exe`, and TRACE is the release tagged `trace-v1.0.1`, the bug-fix pass on top of `trace-v1`.
 
 ## Deployment
 

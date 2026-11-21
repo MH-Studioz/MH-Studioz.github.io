@@ -203,15 +203,21 @@
               <input
                 id="guess-input"
                 type="text"
-                placeholder="Circuit name…"
+                placeholder="Type a circuit…"
                 autocomplete="off"
                 autocapitalize="off"
+                autocorrect="off"
                 spellcheck="false"
-                aria-label="Guess the circuit"
+                enterkeyhint="send"
+                role="combobox"
+                aria-label="Circuit guess"
+                aria-autocomplete="list"
+                aria-expanded="false"
+                aria-controls="suggestions"
               />
               <button class="btn btn-primary" id="btn-guess" type="button">GUESS</button>
             </div>
-            <div class="suggest" id="suggestions" hidden></div>
+            <div class="suggest" id="suggestions" role="listbox" aria-label="Circuit suggestions" hidden></div>
             <div class="guess-footer">
               <div class="guess-dots" id="guess-dots" aria-label="Guesses remaining"></div>
               <button class="btn btn-quiet" id="btn-skip" type="button">GIVE UP</button>
@@ -285,6 +291,7 @@
           <li><b>Championship</b> — eight circuits from one title, fresh order every run. MIXED draws from all seven series, FEEDER from F2/F3/F4 and AMERICAN from NASCAR/IndyCar.</li>
           <li><b>Daily</b> — the same eight circuits for everyone until local midnight.</li>
           <li><b>Party</b> — a host picks the championship, everyone races the same eight.</li>
+          <li><b>Typing</b> — a shortlist appears as you type. ↑ ↓ highlights one, Enter takes it and guesses; Tab still moves on to the next control.</li>
           <li><b>Score</b> — 1,000 down to 120 per solve, minus 250 a wrong guess and clock time.</li>
           <li><b>Legend</b> — one guess, and the line is rotated and flipped.</li>
         </ul>

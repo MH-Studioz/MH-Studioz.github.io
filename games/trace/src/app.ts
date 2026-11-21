@@ -153,6 +153,7 @@ export class TraceApp {
   private selfId = `p-${Math.random().toString(36).slice(2, 10)}`;
   private party = new PartyClient();
   private suggestionList: Suggestion[] = [];
+  private activeSuggestion = -1;
   private toastTimer = 0;
   private dailyTimer = 0;
 
@@ -202,14 +203,26 @@ export class TraceApp {
     input.addEventListener('keydown', (event) => {
       if (event.key === 'Enter') {
         event.preventDefault();
+        if (this.activeSuggestion >= 0) {
+          this.pickSuggestion(this.activeSuggestion, true);
+          return;
+        }
         this.submitGuess();
+      } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        if (!this.suggestionList.length) return;
+        event.preventDefault();
+        const count = this.suggestionList.length;
+        const next =
+          event.key === 'ArrowDown'
+            ? this.activeSuggestion + 1 >= count
+              ? 0
+              : this.activeSuggestion + 1
+            : this.activeSuggestion <= 0
+              ? count - 1
+              : this.activeSuggestion - 1;
+        this.setActiveSuggestion(next);
       } else if (event.key === 'Escape') {
         this.hideSuggestions();
-      } else if (event.key === 'Tab' && !event.shiftKey) {
-        // Keep Tab from accepting a browser autofill completion or landing on a
-        // suggestion: it moves straight to the guess button and never edits the field.
-        event.preventDefault();
-        el('btn-guess').focus({ preventScroll: true });
       }
     });
 
@@ -714,23 +727,50 @@ export class TraceApp {
     box.innerHTML = this.suggestionList
       .map(
         (entry, index) =>
-          `<button class="suggest-item" type="button" data-index="${index}">${escapeHtml(entry.label)}<em>${escapeHtml(entry.meta)}</em></button>`,
+          `<button class="suggest-item" type="button" role="option" aria-selected="false" id="suggest-${index}" data-index="${index}">${escapeHtml(entry.label)}<em>${escapeHtml(entry.meta)}</em></button>`,
       )
       .join('');
     box.hidden = false;
+    input.setAttribute('aria-expanded', 'true');
+    this.setActiveSuggestion(-1);
     for (const button of box.querySelectorAll<HTMLButtonElement>('.suggest-item')) {
-      button.addEventListener('click', () => {
-        const pick = this.suggestionList[Number(button.dataset.index)];
-        if (!pick) return;
-        input.value = pick.label;
-        this.hideSuggestions();
-        input.focus({ preventScroll: true });
-      });
+      button.addEventListener('click', () => this.pickSuggestion(Number(button.dataset.index)));
     }
+  }
+
+  /** Arrow-key highlight inside the open list; -1 means "nothing picked yet". */
+  private setActiveSuggestion(index: number): void {
+    const input = el<HTMLInputElement>('guess-input');
+    const buttons = document.querySelectorAll<HTMLButtonElement>('#suggestions .suggest-item');
+    this.activeSuggestion = index < 0 || index >= buttons.length ? -1 : index;
+    buttons.forEach((button, position) => {
+      const active = position === this.activeSuggestion;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-selected', String(active));
+    });
+    if (this.activeSuggestion >= 0) {
+      input.setAttribute('aria-activedescendant', buttons[this.activeSuggestion].id);
+    } else {
+      input.removeAttribute('aria-activedescendant');
+    }
+  }
+
+  private pickSuggestion(index: number, submit = false): void {
+    const pick = this.suggestionList[index];
+    if (!pick) return;
+    const input = el<HTMLInputElement>('guess-input');
+    input.value = pick.label;
+    this.hideSuggestions();
+    input.focus({ preventScroll: true });
+    if (submit) this.submitGuess();
   }
 
   private hideSuggestions(): void {
     this.suggestionList = [];
+    this.activeSuggestion = -1;
+    const input = el<HTMLInputElement>('guess-input');
+    input.removeAttribute('aria-activedescendant');
+    input.setAttribute('aria-expanded', 'false');
     el('suggestions').hidden = true;
     el('suggestions').innerHTML = '';
   }
