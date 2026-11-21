@@ -21,6 +21,8 @@ export default defineConfig({
         apex: fileURLToPath(new URL('./games/apex-gp-2026/index.html', import.meta.url)),
         // DEEP ATLAS lives next to it: /games/deep-atlas/
         deepAtlas: fileURLToPath(new URL('./games/deep-atlas/index.html', import.meta.url)),
+        // TRACE sits beside it: /games/trace/
+        trace: fileURLToPath(new URL('./games/trace/index.html', import.meta.url)),
       },
     },
   },
