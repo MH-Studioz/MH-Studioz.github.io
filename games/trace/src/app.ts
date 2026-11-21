@@ -288,6 +288,7 @@ export class TraceApp {
       button.addEventListener('click', () => {
         this.championship = button.dataset.championship as ChampionshipId;
         this.renderSeriesChips();
+        this.renderMode();
       });
     }
   }
@@ -301,6 +302,7 @@ export class TraceApp {
       button.addEventListener('click', () => {
         this.difficultyId = button.dataset.difficulty as DifficultyId;
         this.renderDifficultyChips();
+        this.renderMode();
       });
     }
   }
