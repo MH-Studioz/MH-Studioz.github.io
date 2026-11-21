@@ -41,6 +41,8 @@ The site also hosts **DEEP ATLAS**, a self-contained geography rarity game at [`
 
 **TRACE** is a circuit-recognition game at [`/games/trace/`](games/trace/): one unlabeled centerline, one name. It ships 113 circuits across F1, F2, F3, F4, WEC, NASCAR and IndyCar — 40 real GPS traces from the racing game's track data plus schematic ovals, road and street courses — and ten championships: each series on its own, plus **MIXED** (all seven), **FEEDER** (F2/F3/F4) and **AMERICAN** (NASCAR/IndyCar). A championship run draws eight circuits from its pool in a fresh order; the daily trace uses a date seed, so everyone reads the same eight outlines until local midnight, with streak and best-run records kept in `localStorage`. Three difficulties (ROOKIE, PRO and LEGEND, which rotates and flips the line) change the guesses, clock, country hint and score multiplier, and answers are typo-tolerant with city and short-name aliases. Private parties run over PeerJS: the host picks the championship and difficulty, the six-digit code admits guests, every browser starts the same eight circuit ids, and scores stream into a live board and final standings. Results copy out as an emoji share grid. It is built as a third Vite page by `npm run build`; open `http://127.0.0.1:5173/games/trace/` while developing.
 
+**TRACE 1.0** is tagged `trace-v1` and ships as the Pages build at [`/games/trace/`](games/trace/) — there are no downloadable assets, the browser game is the release.
+
 ## Controls
 
 | Input | Action |
