@@ -140,15 +140,21 @@ function levenshtein(a: string, b: string): number {
   return previous[b.length];
 }
 
+/** True when `needle` appears in `haystack` as whole words rather than as a fragment. */
+function containsPhrase(haystack: string, needle: string): boolean {
+  if (!needle) return false;
+  return ` ${haystack} `.includes(` ${needle} `);
+}
+
 /** True when the typed answer names this circuit (aliases and small typos count). */
 export function matchesAnswer(circuit: Circuit, guess: string): boolean {
   const value = normalize(guess);
   if (value.length < 3) return false;
   for (const target of answerTargets(circuit)) {
     if (value === target) return true;
-    if (value.length >= 5 && target.length >= 5 && (target.includes(value) || value.includes(target))) {
-      return true;
-    }
+    // The whole answer typed inside a longer phrase, e.g. "monza italy".
+    // A fragment such as "silver" or "circuit" must never score a hit.
+    if (target.length >= 4 && containsPhrase(value, target)) return true;
     const allowed = target.length <= 7 ? 1 : 2;
     if (Math.abs(value.length - target.length) <= allowed && levenshtein(value, target) <= allowed) {
       return true;

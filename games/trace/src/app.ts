@@ -205,6 +205,11 @@ export class TraceApp {
         this.submitGuess();
       } else if (event.key === 'Escape') {
         this.hideSuggestions();
+      } else if (event.key === 'Tab' && !event.shiftKey) {
+        // Keep Tab from accepting a browser autofill completion or landing on a
+        // suggestion: it moves straight to the guess button and never edits the field.
+        event.preventDefault();
+        el('btn-guess').focus({ preventScroll: true });
       }
     });
 
