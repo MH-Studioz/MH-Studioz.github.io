@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#050609" />
+    <meta
+      name="description"
+      content="TRACE — a circuit-guessing game. One unlabeled centerline, one name. Championship runs, a shared daily trace, three difficulties and private parties."
+    />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self' data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ws://127.0.0.1:* http://127.0.0.1:* ws://localhost:* http://localhost:* wss://0.peerjs.com https://0.peerjs.com; font-src 'self' data:;"
+    />
+    <title>TRACE — Name The Circuit</title>
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="TRACE — Name The Circuit" />
+    <meta
+      property="og:description"
+      content="A single unlabeled centerline. Name the circuit before the clock eats your score. 113 circuits across F1, F2, F3, F4, WEC, NASCAR and IndyCar, mixed championships, a shared daily trace and private parties."
+    />
+    <meta property="og:url" content="https://mh-studioz.github.io/games/trace/" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="TRACE" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23050609'/%3E%3Cpath d='M18 44c-6-8-2-22 8-24 12-2 14 12 22 10 6-1 6-8 2-12' fill='none' stroke='%23f4f6fa' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"
+    />
+  </head>
+  <body>
+    <div class="backdrop" aria-hidden="true">
+      <div class="backdrop-track"></div>
+      <div class="backdrop-grid"></div>
+      <div class="backdrop-glow"></div>
+    </div>
+
+    <main id="app">
+      <!-- ============================ HOME ============================ -->
+      <section id="screen-home" class="screen is-active">
+        <div class="home-shell">
+          <header class="topline">
+            <div class="brandmark">
+              <span class="brand-glyph" aria-hidden="true">
+                <svg viewBox="0 0 48 48" fill="none">
+                  <path
+                    d="M10 34c-5-7-1-18 8-19 10-2 11 10 18 8 5-1 5-7 1-10"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                  />
+                  <circle cx="10" cy="34" r="2.2" fill="currentColor" />
+                </svg>
+              </span>
+              <span class="brand-text">TRACE <small>CIRCUIT RECOGNITION</small></span>
+            </div>
+            <div class="topline-actions">
+              <a class="btn btn-quiet" href="../">GAMES</a>
+              <button class="btn btn-quiet" id="btn-help" type="button">HOW TO PLAY</button>
+            </div>
+          </header>
+
+          <div class="home-grid">
+            <div class="home-lead">
+              <span class="eyebrow"><i class="pulse-dot"></i> ONE LINE · ONE NAME</span>
+              <h1 class="display">NAME THE<br /><span class="display-glow">CIRCUIT.</span></h1>
+              <p class="lede">
+                Every label is gone. No corners, no kerbs, no country, no map. Just the centerline.
+                Read the shape and name the track before the clock takes your points.
+              </p>
+
+              <div class="mode-tabs" id="mode-tabs" role="tablist" aria-label="Game modes"></div>
+
+              <div class="mode-body">
+                <p class="mode-desc" id="mode-desc"></p>
+
+                <div class="chip-block" id="series-block">
+                  <span class="panel-label">CHAMPIONSHIP</span>
+                  <div class="chips" id="series-chips" role="group" aria-label="Championship"></div>
+                </div>
+
+                <div class="chip-block">
+                  <span class="panel-label">DIFFICULTY</span>
+                  <div class="chips" id="difficulty-chips" role="group" aria-label="Difficulty"></div>
+                  <p class="difficulty-note" id="difficulty-note"></p>
+                </div>
+
+                <div class="run-meta" id="run-meta"></div>
+                <button class="btn btn-primary btn-start" id="btn-start" type="button">
+                  <span id="start-label">START THE RUN</span>
+                  <kbd>ENTER</kbd>
+                </button>
+              </div>
+            </div>
+
+            <aside class="home-aside">
+              <div class="glass stat-panel">
+                <div class="panel-label">TODAY'S TRACE</div>
+                <div class="daily-number" id="daily-number">#—</div>
+                <div class="daily-note" id="daily-note">NEXT TRACE IN —</div>
+                <div class="stat-grid">
+                  <div>
+                    <span>DAY STREAK</span>
+                    <strong id="stat-streak">0</strong>
+                  </div>
+                  <div>
+                    <span>BEST DAILY</span>
+                    <strong id="stat-best-daily">—</strong>
+                  </div>
+                  <div>
+                    <span>RUNS</span>
+                    <strong id="stat-runs">0</strong>
+                  </div>
+                  <div>
+                    <span>BEST RUN</span>
+                    <strong id="stat-best">—</strong>
+                  </div>
+                </div>
+                <button class="btn btn-quiet btn-wide" id="btn-daily" type="button">PLAY TODAY'S TRACE</button>
+                <div class="dataset-line" id="dataset-line">113 CIRCUITS · 7 SERIES</div>
+              </div>
+
+              <div class="glass guide-panel">
+                <div class="panel-label">SCORE BOARD</div>
+                <ul class="guide-list">
+                  <li><b>1,000</b><span>clean first-guess solve</span></li>
+                  <li><b>−250</b><span>for every wrong guess</span></li>
+                  <li><b>−4…10</b><span>per second on the clock</span></li>
+                  <li><b>×1.5</b><span>LEGEND multiplier</span></li>
+                </ul>
+                <p class="guide-note">Miss the circuit and the round scores zero. Nothing carries over.</p>
+              </div>
+
+              <div class="glass party-panel" id="party-panel" hidden>
+                <div class="panel-label">PRIVATE PARTY</div>
+                <label class="name-field">
+                  <span>YOUR NAME</span>
+                  <input id="party-name" type="text" maxlength="14" autocomplete="off" spellcheck="false" />
+                </label>
+                <div class="party-actions">
+                  <button class="btn btn-primary" id="btn-host" type="button">HOST</button>
+                  <div class="join-row">
+                    <input id="party-code" inputmode="numeric" maxlength="6" placeholder="6-DIGIT CODE" aria-label="Party code" />
+                    <button class="btn btn-quiet" id="btn-join" type="button">JOIN</button>
+                  </div>
+                </div>
+                <div class="party-status" id="party-status">NOT CONNECTED</div>
+                <div class="party-code-display" id="party-code-display" hidden>
+                  <span>CODE</span>
+                  <strong id="party-code-value">------</strong>
+                </div>
+                <ul class="player-list" id="player-list"></ul>
+                <div class="party-buttons">
+                  <button class="btn btn-primary" id="btn-party-start" type="button" hidden>LAUNCH PARTY RUN</button>
+                  <button class="btn btn-quiet" id="btn-party-leave" type="button" hidden>LEAVE</button>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================ PLAY ============================ -->
+      <section id="screen-play" class="screen" hidden>
+        <div class="play-shell">
+          <header class="play-top">
+            <button class="btn btn-icon" id="btn-quit" type="button" aria-label="Quit run">✕</button>
+            <div class="play-stat">
+              <span>ROUND</span>
+              <strong id="round-counter">1 / 8</strong>
+            </div>
+            <div class="play-stat">
+              <span id="play-series-label">F1 · PRO</span>
+              <strong class="mono-soft" id="play-mode-label">CHAMPIONSHIP</strong>
+            </div>
+            <div class="play-stat">
+              <span>CLOCK</span>
+              <strong id="play-clock">0.0s</strong>
+            </div>
+            <div class="play-stat">
+              <span>SCORE</span>
+              <strong id="play-score">0</strong>
+            </div>
+          </header>
+
+          <div class="stage" id="stage">
+            <svg id="outline" viewBox="0 0 1000 1000" role="img" aria-label="An unlabeled circuit outline">
+              <g id="outline-group">
+                <path id="outline-path" d="" />
+              </g>
+            </svg>
+            <span class="stage-corner tl" aria-hidden="true"></span>
+            <span class="stage-corner tr" aria-hidden="true"></span>
+            <span class="stage-corner bl" aria-hidden="true"></span>
+            <span class="stage-corner br" aria-hidden="true"></span>
+            <div class="stage-tag" id="stage-tag">UNLABELED CENTERLINE</div>
+          </div>
+
+          <div class="guess-area">
+            <div class="hint-line" id="hint-line">TYPE THE CIRCUIT NAME</div>
+            <div class="guess-row">
+              <input
+                id="guess-input"
+                type="text"
+                placeholder="Circuit name…"
+                autocomplete="off"
+                autocapitalize="off"
+                spellcheck="false"
+                aria-label="Guess the circuit"
+              />
+              <button class="btn btn-primary" id="btn-guess" type="button">GUESS</button>
+            </div>
+            <div class="suggest" id="suggestions" hidden></div>
+            <div class="guess-footer">
+              <div class="guess-dots" id="guess-dots" aria-label="Guesses remaining"></div>
+              <button class="btn btn-quiet" id="btn-skip" type="button">GIVE UP</button>
+            </div>
+          </div>
+
+          <div class="party-ticker" id="party-ticker" hidden></div>
+        </div>
+      </section>
+
+      <!-- ============================ SUMMARY ============================ -->
+      <section id="screen-summary" class="screen" hidden>
+        <div class="summary-shell">
+          <span class="eyebrow">RUN COMPLETE</span>
+          <h2 class="summary-title" id="summary-title">TRACE RUN</h2>
+
+          <div class="summary-grid">
+            <div class="glass score-card">
+              <div class="grade" id="summary-grade">A</div>
+              <div class="score-big" id="summary-score">0</div>
+              <div class="score-meta" id="summary-meta">0 / 8 CORRECT</div>
+              <div class="score-sub" id="summary-sub"></div>
+            </div>
+
+            <div class="glass share-card">
+              <div class="panel-label">SHARE GRID</div>
+              <pre class="share-grid" id="summary-share"></pre>
+              <div class="share-actions">
+                <button class="btn btn-primary" id="btn-copy" type="button">COPY RESULT</button>
+                <button class="btn btn-quiet" id="btn-again" type="button">RUN AGAIN</button>
+                <button class="btn btn-quiet" id="btn-home" type="button">HOME</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="glass board-card">
+            <div class="panel-label">ROUND BY ROUND</div>
+            <div class="board" id="summary-board"></div>
+          </div>
+
+          <div class="glass board-card" id="summary-standings-card" hidden>
+            <div class="panel-label">PARTY STANDINGS</div>
+            <div class="board" id="summary-standings"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- round feedback -->
+    <div class="overlay" id="round-card" hidden>
+      <div class="round-card" role="dialog" aria-modal="true" aria-labelledby="round-verdict">
+        <span class="verdict" id="round-verdict">CORRECT</span>
+        <h3 class="answer-name" id="round-answer">Monza</h3>
+        <p class="answer-meta" id="round-meta">Monza, Italy · 5,793 m</p>
+        <div class="round-points" id="round-points">+1,000</div>
+        <p class="round-note" id="round-note"></p>
+        <button class="btn btn-primary btn-wide" id="btn-next" type="button">NEXT CIRCUIT</button>
+      </div>
+    </div>
+
+    <div class="modal" id="modal-help" hidden role="dialog" aria-modal="true" aria-labelledby="help-title">
+      <div class="modal-panel">
+        <span class="eyebrow">HOW TO PLAY</span>
+        <h2 id="help-title">READ THE LINE</h2>
+        <p>
+          You get one circuit centerline with every label stripped off. Type the circuit name and
+          press Enter. Aliases count: Monza, Autodromo Nazionale Monza, Temple of Speed — all the same
+          answer.
+        </p>
+        <ul class="help-list">
+          <li><b>Championship</b> — eight circuits from one title, fresh order every run. MIXED draws from all seven series, FEEDER from F2/F3/F4 and AMERICAN from NASCAR/IndyCar.</li>
+          <li><b>Daily</b> — the same eight circuits for everyone until local midnight.</li>
+          <li><b>Party</b> — a host picks the championship, everyone races the same eight.</li>
+          <li><b>Score</b> — 1,000 down to 120 per solve, minus 250 a wrong guess and clock time.</li>
+          <li><b>Legend</b> — one guess, and the line is rotated and flipped.</li>
+        </ul>
+        <button class="btn btn-primary btn-wide" id="btn-help-close" type="button">UNDERSTOOD</button>
+      </div>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

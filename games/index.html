@@ -6,9 +6,9 @@
     <meta name="theme-color" content="#04080c" />
     <meta
       name="description"
-      content="Two games from MH Studioz: DEEP ATLAS, the geography rarity engine, and GP 2026, the racing simulator."
+      content="Three games from MH Studioz: DEEP ATLAS, the geography rarity engine, GP 2026, the racing simulator, and TRACE, the circuit recognition game."
     />
-    <title>GAMES — DEEP ATLAS &amp; GP 2026</title>
+    <title>GAMES — DEEP ATLAS, GP 2026 &amp; TRACE</title>
     <link
       rel="icon"
       href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2305080c'/%3E%3Cpath d='M16 16h32M16 32h32M16 48h32M16 16v32M32 16v32M48 16v32' stroke='%2331e6c4' stroke-width='2' opacity='.8'/%3E%3Ccircle cx='32' cy='32' r='6' fill='%23ffb347'/%3E%3C/svg%3E"
@@ -17,7 +17,7 @@
     <meta property="og:title" content="GAMES — DEEP ATLAS &amp; GP 2026" />
     <meta
       property="og:description"
-      content="DEEP ATLAS: name the most obscure real places on Earth. GP 2026: open-wheel, GT and rally racing. Two games, no accounts, no keys."
+      content="DEEP ATLAS: name the most obscure real places on Earth. GP 2026: open-wheel, GT and rally racing. TRACE: name the circuit from one unlabeled centerline. No accounts, no keys."
     />
     <meta property="og:url" content="https://mh-studioz.github.io/games/" />
     <meta property="og:image" content="https://mh-studioz.github.io/assets/og/games.jpg" />
@@ -189,7 +189,7 @@
 
       .cards {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: repeat(auto-fit, minmax(272px, 1fr));
         gap: clamp(14px, 2vw, 22px);
         flex: 1;
       }
@@ -244,6 +244,12 @@
         --accent: var(--red);
         --accent-soft: rgba(225, 6, 0, 0.18);
         --accent-line: rgba(225, 6, 0, 0.45);
+      }
+
+      .card.trace {
+        --accent: #ffb454;
+        --accent-soft: rgba(255, 180, 84, 0.16);
+        --accent-line: rgba(255, 180, 84, 0.45);
       }
 
       .card-top {
@@ -399,15 +405,15 @@
           <span class="brand-mark" aria-hidden="true">MH</span>
           <span>GAMES<small>MH STUDIOZ SHELF</small></span>
         </div>
-        <span class="shelf-tag">TWO TITLES · NO ACCOUNTS · NO KEYS</span>
+        <span class="shelf-tag">THREE TITLES · NO ACCOUNTS · NO KEYS</span>
       </header>
 
       <section class="intro">
         <span class="eyebrow">PICK A DESCENT</span>
         <h1>Choose your<br /><em>next session.</em></h1>
         <p>
-          One is about the planet, one is about the lap. Both run entirely in the browser, need no
-          sign-in and keep your scores on your own device.
+          One is about the planet, one about the lap, one about the line. All three run entirely in
+          the browser, need no sign-in and keep your scores on your own device.
         </p>
       </section>
 
@@ -449,11 +455,30 @@
             <span class="cta">Open the paddock <span aria-hidden="true">→</span></span>
           </div>
         </a>
+
+        <a class="card trace" href="./trace/">
+          <div class="card-top"><span>03 / RECOGNITION</span><b>NEW</b></div>
+          <h2>Trace</h2>
+          <p>
+            One circuit centerline with every label stripped off. Read the shape, name the track,
+            and beat the clock before the next one appears.
+          </p>
+          <ul class="facts">
+            <li>113 circuits</li>
+            <li>10 championships</li>
+            <li>Daily</li>
+            <li>Party</li>
+          </ul>
+          <div class="card-foot">
+            <span class="status">8 ROUNDS A RUN<br />DAILY AT LOCAL MIDNIGHT</span>
+            <span class="cta">Read the line <span aria-hidden="true">→</span></span>
+          </div>
+        </a>
       </div>
 
       <footer class="shelf-foot">
         <span>NO SIGN-IN · SCORES STAY LOCAL</span>
-        <span>DEEP ATLAS DAILY SEED · LOCAL MIDNIGHT</span>
+        <span>DAILY SEEDS · LOCAL MIDNIGHT</span>
         <a href="../">SITE ROOT →</a>
       </footer>
     </main>

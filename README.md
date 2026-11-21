@@ -2,7 +2,7 @@
 
 A racing simulator with open-wheel, GT, prototype, hypercar, stock and kart classes plus two gravel rally stages, built with TypeScript, Vite and Three.js. It runs in the browser and as a Windows desktop app.
 
-**Play:** https://mh-studioz.github.io/games/ — the games shelf, linking **GP 2026** and **DEEP ATLAS**. The site root redirects to it. The repository is published as `MH-Studioz.github.io`, so the site sits at the domain root rather than under a project prefix.
+**Play:** https://mh-studioz.github.io/games/ — the games shelf, linking **GP 2026**, **DEEP ATLAS** and **TRACE**. The site root redirects to it. The repository is published as `MH-Studioz.github.io`, so the site sits at the domain root rather than under a project prefix.
 
 **Beta v0.2:** browser build on GitHub Pages, plus Windows NSIS and portable EXE assets on the GitHub release.
 
@@ -37,6 +37,10 @@ A racing simulator with open-wheel, GT, prototype, hypercar, stock and kart clas
 
 The site also hosts **DEEP ATLAS**, a self-contained geography rarity game at [`/games/deep-atlas/`](games/deep-atlas/): seven timed prompts per round, five modes plus a private party, three difficulty clocks, typo-tolerant answers, inverse-rarity depth scoring and a shareable emoji scorecard. The bundled database holds 7,970 places — 195 countries, 5,082 cities, 1,060 rivers, 744 lakes, 627 peaks and 262 islands — and needs no API keys. The atlas is loaded after first paint, so the home screen appears from a small entry chunk while the geography tables stream in behind it. It is built as a second Vite page by `npm run build`; open `http://127.0.0.1:5173/games/deep-atlas/` while developing.
 
+## TRACE
+
+**TRACE** is a circuit-recognition game at [`/games/trace/`](games/trace/): one unlabeled centerline, one name. It ships 113 circuits across F1, F2, F3, F4, WEC, NASCAR and IndyCar — 40 real GPS traces from the racing game's track data plus schematic ovals, road and street courses — and ten championships: each series on its own, plus **MIXED** (all seven), **FEEDER** (F2/F3/F4) and **AMERICAN** (NASCAR/IndyCar). A championship run draws eight circuits from its pool in a fresh order; the daily trace uses a date seed, so everyone reads the same eight outlines until local midnight, with streak and best-run records kept in `localStorage`. Three difficulties (ROOKIE, PRO and LEGEND, which rotates and flips the line) change the guesses, clock, country hint and score multiplier, and answers are typo-tolerant with city and short-name aliases. Private parties run over PeerJS: the host picks the championship and difficulty, the six-digit code admits guests, every browser starts the same eight circuit ids, and scores stream into a live board and final standings. Results copy out as an emoji share grid. It is built as a third Vite page by `npm run build`; open `http://127.0.0.1:5173/games/trace/` while developing.
+
 ## Controls
 
 | Input | Action |
@@ -66,7 +70,7 @@ npm run build
 
 The production bundle uses relative asset paths and is written to `dist/`.
 
-Both games build from the `games/` shelf: `npm run dev` serves the shelf at `http://127.0.0.1:5173/games/`, the racing game at `http://127.0.0.1:5173/games/apex-gp-2026/` and DEEP ATLAS at `http://127.0.0.1:5173/games/deep-atlas/`. The site root is a redirect page to the shelf, matching GitHub Pages, and `desktop:build` packages the same nested entries.
+All three games build from the `games/` shelf: `npm run dev` serves the shelf at `http://127.0.0.1:5173/games/`, the racing game at `http://127.0.0.1:5173/games/apex-gp-2026/`, DEEP ATLAS at `http://127.0.0.1:5173/games/deep-atlas/` and TRACE at `http://127.0.0.1:5173/games/trace/`. The site root is a redirect page to the shelf, matching GitHub Pages, and `desktop:build` packages the same nested entries.
 
 ### Windows desktop
 
@@ -98,7 +102,7 @@ src/
   tracks/      GeoJSON loading and track maths
   ui/          driver hub, race builder, garage, HUD, minimap, pause, multiplayer
 electron/      desktop main process and preload
-games/         index.html (shelf), apex-gp-2026/ (racing game) and deep-atlas/ (geography game)
+games/         index.html (shelf), apex-gp-2026/ (racing), deep-atlas/ (geography) and trace/ (circuit recognition)
 public/        circuits, car model, audio, share images and the 404 forwarder
 ```
 
