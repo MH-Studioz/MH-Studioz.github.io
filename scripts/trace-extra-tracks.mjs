@@ -141,7 +141,7 @@ export const EXTRA_TRACKS = [
   {
     id: 'de-avus', name: 'AVUS', short: 'AVUS', city: 'Berlin',
     country: 'Germany', length: 8300, series: ['f1'],
-    aliases: ['avus', 'berlin'], squash: [1, 0.55], passes: 0,
+    aliases: ['avus', 'berlin'], squash: [1, 0.34], passes: 0,
     points: [[80, 230], [920, 230], [930, 300], [920, 370], [80, 370], [70, 300]],
   },
   {
