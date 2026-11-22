@@ -1,8 +1,26 @@
 import * as THREE from 'three';
 
-export type CameraMode = 'chase' | 'cockpit' | 'tv';
+export type CameraMode = 'chase' | 'interior' | 'hood' | 'tv';
 
-export const CAMERA_MODES: CameraMode[] = ['chase', 'cockpit', 'tv'];
+export const CAMERA_MODES: CameraMode[] = ['chase', 'interior', 'hood', 'tv'];
+
+/**
+ * Onboard cameras ride with the car, so they take their offset in car-local
+ * units (metres) and look straight down the road rather than lagging behind.
+ */
+interface OnboardCamera {
+  eye: [number, number, number];
+  look: [number, number, number];
+  follow: number;
+  fov: number;
+}
+
+const ONBOARD: Record<'interior' | 'hood', OnboardCamera> = {
+  // Driver's eye: low, behind the windscreen, level with the wheel rim.
+  interior: { eye: [0, 1.14, -0.55], look: [0, 0.95, 40], follow: 42, fov: 72 },
+  // Bonnet: just ahead of the screen, low over the nose.
+  hood: { eye: [0, 1.02, 1.78], look: [0, 0.72, 36], follow: 46, fov: 76 },
+};
 
 export class CameraRig {
   readonly camera: THREE.PerspectiveCamera;
@@ -38,19 +56,29 @@ export class CameraRig {
       this.initialised = true;
     }
 
-    if (this.mode === 'cockpit' || this.mode === 'chase') {
-      const isCockpit = this.mode === 'cockpit';
+    if (this.mode === 'chase') {
       const desired = new THREE.Vector3().copy(carPos);
-      desired.add(new THREE.Vector3(0, isCockpit ? 1.12 : 2.72, 0));
-      desired.addScaledVector(forward, isCockpit ? 0.18 : -7.4);
-      if (!isCockpit) desired.addScaledVector(right, 0);
-      const follow = 1 - Math.exp(-dt * (isCockpit ? 30 : 5.4));
+      desired.add(new THREE.Vector3(0, 2.72, 0));
+      desired.addScaledVector(forward, -7.4);
+      const follow = 1 - Math.exp(-dt * 5.4);
       this.pos.lerp(desired, follow);
       const lookTarget = new THREE.Vector3().copy(carPos);
-      lookTarget.add(new THREE.Vector3(0, isCockpit ? 0.85 : 0.75, 0));
-      lookTarget.addScaledVector(forward, isCockpit ? 40 : 12);
-      this.look.lerp(lookTarget, 1 - Math.exp(-dt * (isCockpit ? 26 : 8)));
+      lookTarget.add(new THREE.Vector3(0, 0.75, 0));
+      lookTarget.addScaledVector(forward, 12);
+      this.look.lerp(lookTarget, 1 - Math.exp(-dt * 8));
       this.camera.fov += (speedFov - this.camera.fov) * Math.min(1, dt * 4);
+    } else if (this.mode === 'interior' || this.mode === 'hood') {
+      const rig = ONBOARD[this.mode];
+      const desired = new THREE.Vector3().copy(carPos);
+      desired.addScaledVector(forward, rig.eye[2]);
+      desired.addScaledVector(right, rig.eye[0]);
+      desired.y += rig.eye[1];
+      this.pos.lerp(desired, 1 - Math.exp(-dt * rig.follow));
+      const lookTarget = new THREE.Vector3().copy(carPos);
+      lookTarget.addScaledVector(forward, rig.look[2]);
+      lookTarget.y += rig.look[1];
+      this.look.lerp(lookTarget, 1 - Math.exp(-dt * (rig.follow - 6)));
+      this.camera.fov += (rig.fov - this.camera.fov) * Math.min(1, dt * 6);
     } else {
       const desired = new THREE.Vector3().copy(carPos).addScaledVector(forward, -16);
       desired.y += 17;

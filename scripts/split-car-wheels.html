@@ -1,0 +1,170 @@
+<!doctype html>
+<html>
+  <body>
+    <script type="module">
+      import * as THREE from 'three';
+      import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+      import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
+      import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
+
+      const WHEELISH = /wheel|rims|\brim\b|tyre|tire|neumatic|rueda|llanta|roues|cerchione|felge|pneu/i;
+      const CORNERS = [
+        { key: 'lf', sx: -1, sz: 1 },
+        { key: 'rf', sx: 1, sz: 1 },
+        { key: 'lr', sx: -1, sz: -1 },
+        { key: 'rr', sx: 1, sz: -1 },
+      ];
+
+      const labelOf = (mesh) => {
+        const names = [mesh.name];
+        let cur = mesh;
+        for (let i = 0; i < 5 && cur; i += 1) {
+          names.push(cur.name);
+          cur = cur.parent;
+        }
+        return names.join(' ');
+      };
+
+      function toBase64(buffer) {
+        const bytes = new Uint8Array(buffer);
+        let binary = '';
+        const chunk = 0x8000;
+        for (let i = 0; i < bytes.length; i += chunk) {
+          binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+        }
+        return btoa(binary);
+      }
+
+      window.__split = async (file) => {
+        const loader = new GLTFLoader();
+        loader.setMeshoptDecoder(MeshoptDecoder);
+        const gltf = await loader.loadAsync(`/assets/models/cars/${file}`);
+        const model = gltf.scene;
+        model.updateMatrixWorld(true);
+
+        const wheelMeshes = [];
+        model.traverse((o) => {
+          if (o.isMesh && WHEELISH.test(labelOf(o))) wheelMeshes.push(o);
+        });
+
+        const body = new THREE.Group();
+        body.name = 'body';
+        const buckets = Object.fromEntries(CORNERS.map((c) => [c.key, { pos: [], nor: [] }]));
+
+        for (const mesh of wheelMeshes) {
+          const pos = mesh.geometry.getAttribute('position');
+          const nor = mesh.geometry.getAttribute('normal');
+          const idx = mesh.geometry.index;
+          const count = idx ? idx.count : pos.count;
+          const a = new THREE.Vector3();
+          const b = new THREE.Vector3();
+          const c = new THREE.Vector3();
+          for (let t = 0; t + 2 < count; t += 3) {
+            const at = [idx ? idx.getX(t) : t, idx ? idx.getX(t + 1) : t + 1, idx ? idx.getX(t + 2) : t + 2];
+            a.fromBufferAttribute(pos, at[0]).applyMatrix4(mesh.matrixWorld);
+            b.fromBufferAttribute(pos, at[1]).applyMatrix4(mesh.matrixWorld);
+            c.fromBufferAttribute(pos, at[2]).applyMatrix4(mesh.matrixWorld);
+            const cx = (a.x + b.x + c.x) / 3;
+            const cz = (a.z + b.z + c.z) / 3;
+            const corner = CORNERS.find((k) => Math.sign(cx) === k.sx && Math.sign(cz) === k.sz);
+            if (!corner) continue;
+            const bucket = buckets[corner.key];
+            const pts = [a, b, c];
+            for (let k = 0; k < 3; k += 1) {
+              bucket.pos.push(pts[k].x, pts[k].y, pts[k].z);
+              if (nor) {
+                const n = new THREE.Vector3().fromBufferAttribute(nor, at[k]).transformDirection(mesh.matrixWorld);
+                bucket.nor.push(n.x, n.y, n.z);
+              }
+            }
+          }
+        }
+
+        const stats = [];
+        for (const corner of CORNERS) {
+          const bucket = buckets[corner.key];
+          if (!bucket.pos.length) continue;
+          const box = new THREE.Box3();
+          const p = new THREE.Vector3();
+          for (let i = 0; i < bucket.pos.length; i += 3) box.expandByPoint(p.set(bucket.pos[i], bucket.pos[i + 1], bucket.pos[i + 2]));
+          const centre = box.getCenter(new THREE.Vector3());
+          const positions = new Float32Array(bucket.pos.length);
+          for (let i = 0; i < bucket.pos.length; i += 3) {
+            positions[i] = bucket.pos[i] - centre.x;
+            positions[i + 1] = bucket.pos[i + 1] - centre.y;
+            positions[i + 2] = bucket.pos[i + 2] - centre.z;
+          }
+          const geometry = new THREE.BufferGeometry();
+          geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+          if (bucket.nor.length === bucket.pos.length) {
+            geometry.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(bucket.nor), 3));
+          } else {
+            geometry.computeVertexNormals();
+          }
+          const material = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.6, side: THREE.DoubleSide });
+          const wheel = new THREE.Mesh(geometry, material);
+          const group = new THREE.Group();
+          group.name = `wheel-${corner.key}`;
+          group.position.copy(centre);
+          group.add(wheel);
+          body.add(group);
+          const size = box.getSize(new THREE.Vector3());
+          stats.push({ key: corner.key, tris: bucket.pos.length / 9, radius: Math.max(size.y, size.z) / 2, centre: centre.toArray() });
+        }
+
+        // the shell keeps the scan's own transform; wheel groups sit outside it
+        body.add(model);
+        for (const mesh of wheelMeshes) mesh.parent?.remove(mesh);
+        const strays = [];
+        body.traverse((o) => {
+          if (!o.isMesh) return;
+          let cur = o.parent;
+          while (cur) { if (cur.name?.startsWith('wheel-')) return; cur = cur.parent; }
+          if (WHEELISH.test(labelOf(o))) strays.push(o);
+        });
+        for (const m of strays) m.parent?.remove(m);
+
+        const scene = new THREE.Scene();
+        scene.add(body);
+
+        // does the shell still carry geometry inside a wheel envelope?
+        const envelopes = stats.map((s2) => ({ ...s2, halfWidth: 0 }));
+        body.traverse((o) => {
+          if (!o.isMesh) return;
+          let cur = o.parent;
+          while (cur) { if (cur.name?.startsWith('wheel-')) return; cur = cur.parent; }
+          const pos2 = o.geometry.getAttribute('position');
+          const idx2 = o.geometry.index;
+          const count2 = idx2 ? idx2.count : pos2.count;
+          const p2 = new THREE.Vector3();
+          for (let t = 0; t + 2 < count2; t += 3) {
+            let cx = 0; let cy = 0; let cz = 0;
+            for (let k = 0; k < 3; k += 1) {
+              const at = idx2 ? idx2.getX(t + k) : t + k;
+              p2.fromBufferAttribute(pos2, at).applyMatrix4(o.matrixWorld);
+              cx += p2.x; cy += p2.y; cz += p2.z;
+            }
+            cx /= 3; cy /= 3; cz /= 3;
+            for (const env of envelopes) {
+              const r = Math.hypot(cy - env.centre[1], cz - env.centre[2]);
+              if (r < env.radius * 0.92 && Math.abs(cx - env.centre[0]) < env.radius * 0.6) env.leftover = (env.leftover ?? 0) + 1;
+            }
+          }
+        });
+
+        const exporter = new GLTFExporter();
+        const buffer = await exporter.parseAsync(scene, { binary: true, onlyVisible: true });
+        let bodyTris = 0;
+        body.traverse((o) => {
+          if (!o.isMesh) return;
+          let cur = o.parent;
+          while (cur) { if (cur.name?.startsWith('wheel-')) return; cur = cur.parent; }
+          const pos2 = o.geometry.getAttribute('position');
+          bodyTris += (o.geometry.index ? o.geometry.index.count : pos2.count) / 3;
+        });
+        return { base64: toBase64(buffer), stats, wheelMeshes: wheelMeshes.length, bodyTris };
+      };
+      window.__ready = true;
+    </script>
+  </body>
+</html>

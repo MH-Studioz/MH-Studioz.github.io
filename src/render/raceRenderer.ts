@@ -57,7 +57,10 @@ export class RaceRenderer {
       alpha: false,
       stencil: false,
     });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.35));
+    // Phones pay for fill rate twice over (dpr 3 screens, no discrete GPU), and a
+    // racing frame is judged on input latency, not on a retina-sharp HUD.
+    const coarsePointer = globalThis.matchMedia?.('(pointer: coarse)').matches ?? false;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, coarsePointer ? 1 : 1.35));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = track.night ? 1.2 : 1.08;

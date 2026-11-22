@@ -663,6 +663,13 @@ export class CarVisual {
     this.group.add(holder);
     this.group.updateMatrixWorld(true);
 
+    // Scans split offline carry four `wheel-*` nodes with the axle at the node
+    // origin: the shell holds no second copy, so the rig only has to turn.
+    if (this.bindNamedWheels(holder)) {
+      this.mergeAfterBuild = true;
+      return;
+    }
+
     const packs = this.extractWheels(holder, classSpec.wheelRadius);
     for (const pack of packs) {
       const steer = new THREE.Group();
@@ -681,6 +688,64 @@ export class CarVisual {
     }
 
     this.mergeAfterBuild = true;
+  }
+
+  /**
+   * Binds the offline-split wheel nodes of a scan as steer/spin rigs. Returns
+   * false for classes whose uploads never separated their wheels, which fall
+   * back to the positional cut below.
+   */
+  private bindNamedWheels(holder: THREE.Group): boolean {
+    const nodes: THREE.Object3D[] = [];
+    holder.traverse((o) => {
+      if (/^wheel-(lf|rf|lr|rr)$/.test(o.name)) nodes.push(o);
+    });
+    if (nodes.length !== 4) return false;
+
+    const holderInverse = holder.matrixWorld.clone().invert();
+    const toLocal = new THREE.Matrix4();
+    const centre = new THREE.Vector3();
+    let radiusTotal = 0;
+
+    for (const node of nodes) {
+      node.updateWorldMatrix(true, true);
+      toLocal.multiplyMatrices(holderInverse, node.matrixWorld);
+      centre.setFromMatrixPosition(toLocal);
+      const meshes: THREE.Mesh[] = [];
+      node.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (mesh.isMesh) meshes.push(mesh);
+      });
+      if (!meshes.length) return false;
+
+      const steer = new THREE.Group();
+      steer.position.copy(centre);
+      steer.userData.wheelRig = true;
+      const spin = new THREE.Group();
+      steer.add(spin);
+      let radius = 0;
+      for (const mesh of meshes) {
+        const geometry = mesh.geometry.clone();
+        mesh.updateWorldMatrix(true, false);
+        geometry.applyMatrix4(new THREE.Matrix4().multiplyMatrices(holderInverse, mesh.matrixWorld));
+        geometry.translate(-centre.x, -centre.y, -centre.z);
+        const position = geometry.getAttribute('position');
+        for (let i = 0; i < position.count; i += 1) {
+          radius = Math.max(radius, Math.hypot(position.getY(i), position.getZ(i)));
+        }
+        const part = new THREE.Mesh(geometry, this.modelMaterial('carbon'));
+        part.castShadow = true;
+        part.receiveShadow = true;
+        spin.add(part);
+      }
+      holder.add(steer);
+      radiusTotal += Math.max(0.1, radius);
+      this.wheels.push({ pivot: steer, spin, front: node.name.endsWith('f'), axis: 'x', radius: Math.max(0.1, radius) });
+      node.parent?.remove(node);
+    }
+
+    if (this.wheels.length === 4 && radiusTotal > 0) this.spinRadius = radiusTotal / 4;
+    return this.wheels.length === 4;
   }
 
   /**

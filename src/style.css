@@ -2982,7 +2982,8 @@ input[type="range"]::-moz-range-thumb {
   .hud-session { display: none; }
   .hud-center { gap: 7px; padding: 4px 8px; min-width: 0; }
   .hud-lap span { display: none; }
-  .hud-lap strong { font-size: 12px; }
+  .hud-lap strong { font-size: 12px; white-space: nowrap; }
+  .hud-lap { white-space: nowrap; }
   .hud-time { font-size: 13px; padding-left: 7px; }
   .hud-delta { display: none; }
   .hud-pos { padding: 2px 7px; }
@@ -3088,4 +3089,37 @@ input[type="range"]::-moz-range-thumb {
   .minimap-panel { max-height: 42vh; }
   .minimap { height: 62px; }
   .telemetry { bottom: calc(6px + var(--safe-b)); }
+}
+
+/* --------------------------- touch ergonomics --------------------------- */
+/* A race is a full-screen gesture surface: no page bounce, no pull-to-refresh
+   and no double-tap zoom underneath a thumb that is holding the throttle. */
+html,
+body {
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+}
+
+#race-canvas {
+  touch-action: none;
+}
+
+@media (pointer: coarse) {
+  /* The camera / data / recover tools were desktop-width chips at 29 px; a
+     thumb needs a real target, and they now cycle four camera modes. */
+  .touch-tool {
+    width: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    font-size: 12px;
+  }
+
+  .touch-controls {
+    height: max(210px, 26vh);
+  }
+
+  .touch-btn {
+    /* keep the pads clear of the telemetry strip on short phones */
+    bottom: calc(14px + var(--safe-b));
+  }
 }
