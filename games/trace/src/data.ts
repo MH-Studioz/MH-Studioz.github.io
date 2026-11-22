@@ -1,4 +1,5 @@
 import raw from '../data/circuits.json';
+import podiumRaw from '../data/podiums.json';
 
 export type SeriesId = 'f1' | 'f2' | 'f3' | 'f4' | 'wec' | 'nascar' | 'indycar';
 
@@ -10,7 +11,7 @@ export interface SeriesDef {
 }
 
 export const SERIES: SeriesDef[] = [
-  { id: 'f1', label: 'F1', name: 'Formula 1', note: '2026 CALENDAR' },
+  { id: 'f1', label: 'F1', name: 'Formula 1', note: 'F1 CIRCUITS' },
   { id: 'f2', label: 'F2', name: 'Formula 2', note: 'FEEDER LADDER' },
   { id: 'f3', label: 'F3', name: 'Formula 3', note: 'FEEDER LADDER' },
   { id: 'f4', label: 'F4', name: 'Formula 4', note: 'NATIONAL GRIDS' },
@@ -107,3 +108,30 @@ export function championshipName(id: ChampionshipId): string {
 export function formatLength(meters: number): string {
   return `${meters.toLocaleString('en-US')} m`;
 }
+
+/* ------------------------------------------------------------------ */
+/* Podium archive                                                      */
+/* ------------------------------------------------------------------ */
+
+export interface PodiumLine {
+  pos: number;
+  driver: string;
+  team: string;
+  time: string;
+}
+
+export interface PodiumRace {
+  round: number;
+  gp: string;
+  short: string;
+  circuitId: string;
+  podium: PodiumLine[];
+}
+
+export interface PodiumSeason {
+  season: number;
+  races: PodiumRace[];
+}
+
+/** Top three of every round, newest season first. */
+export const PODIUM_SEASONS: PodiumSeason[] = (podiumRaw as { seasons: PodiumSeason[] }).seasons;

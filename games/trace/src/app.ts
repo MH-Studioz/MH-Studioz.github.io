@@ -2,6 +2,7 @@ import {
   BY_ID,
   CHAMPIONSHIPS,
   CIRCUITS,
+  PODIUM_SEASONS,
   SERIES,
   TAGGED,
   championshipName,
@@ -9,6 +10,7 @@ import {
   formatLength,
   type ChampionshipId,
   type Circuit,
+  type PodiumRace,
 } from './data';
 import {
   DIFFICULTIES,
@@ -33,7 +35,7 @@ import {
 } from './engine';
 import { PartyClient, type PartyGame, type PartyLobby, type PartyPlayer, type PartyStatus } from './net';
 
-type Mode = 'championship' | 'daily' | 'party';
+type Mode = 'championship' | 'daily' | 'party' | 'podium';
 type Screen = 'home' | 'play' | 'summary';
 
 const ROUNDS_PER_RUN = 8;
@@ -64,6 +66,12 @@ const MODES: ModeDef[] = [
     label: 'PARTY',
     desc: 'One host, one code, one live board. The host picks the championship and difficulty; everyone in the room gets the same eight outlines at the same time.',
     meta: ['8 CIRCUITS', 'LIVE BOARD', 'PEER-TO-PEER'],
+  },
+  {
+    id: 'podium',
+    label: 'PODIUM',
+    desc: 'Every round of 2024 and 2025, top three only. Pick a season, pick a Grand Prix, and the podium is there: winner, second, third with teams and the gap to the leader.',
+    meta: ['48 PODIUMS', '2024 · 2025', 'TOP THREE'],
   },
 ];
 
@@ -161,6 +169,7 @@ export class TraceApp {
     this.renderModeTabs();
     this.renderSeriesChips();
     this.renderDifficultyChips();
+    this.renderPodium();
     this.renderMode();
     this.updateDaily();
     this.wire();
@@ -241,7 +250,7 @@ export class TraceApp {
       if (event.key !== 'Enter') return;
       const target = event.target as HTMLElement | null;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'BUTTON')) return;
-      if (this.screen === 'home' && this.mode !== 'party') {
+      if (this.screen === 'home' && (this.mode === 'championship' || this.mode === 'daily')) {
         event.preventDefault();
         this.startRun();
       }
@@ -334,7 +343,9 @@ export class TraceApp {
     el('mode-desc').textContent = def.desc;
     el('series-block').hidden = this.mode === 'daily';
     el('party-panel').hidden = this.mode !== 'party';
-    el('btn-start').hidden = this.mode === 'party';
+    el('podium-block').hidden = this.mode !== 'podium';
+    el('difficulty-block').hidden = this.mode === 'podium';
+    el('btn-start').hidden = this.mode === 'party' || this.mode === 'podium';
 
     const difficulty = difficultyById(this.difficultyId);
     el('run-meta').innerHTML = def.meta.map((item) => `<span>${item}</span>`).join('');
@@ -350,6 +361,78 @@ export class TraceApp {
     for (const chip of document.querySelectorAll<HTMLElement>('#difficulty-chips .chip')) {
       chip.classList.toggle('is-active', chip.dataset.difficulty === this.difficultyId);
     }
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Podium archive                                                     */
+  /* ------------------------------------------------------------------ */
+
+  private pageSeason = PODIUM_SEASONS[0]?.season ?? 0;
+  private pagePodium: PodiumRace | null = null;
+
+  private renderPodium(): void {
+    const season = PODIUM_SEASONS.find((entry) => entry.season === this.pageSeason) ?? PODIUM_SEASONS[0];
+    if (!season) return;
+    this.pageSeason = season.season;
+
+    el('podium-years').innerHTML = PODIUM_SEASONS.map(
+      (entry) =>
+        `<button class="chip${entry.season === season.season ? ' is-active' : ''}" type="button" data-season="${entry.season}"><strong>${entry.season}</strong><small>${entry.races.length} ROUNDS</small></button>`,
+    ).join('');
+    for (const button of document.querySelectorAll<HTMLButtonElement>('#podium-years .chip')) {
+      button.addEventListener('click', () => {
+        this.pageSeason = Number(button.dataset.season);
+        this.pagePodium = null;
+        this.renderPodium();
+      });
+    }
+
+    el('podium-races').innerHTML = season.races
+      .map(
+        (race) =>
+          `<button class="podium-race${this.pagePodium?.round === race.round ? ' is-active' : ''}" type="button" data-round="${race.round}"><span>R${pad(race.round)}</span>${escapeHtml(race.short)}</button>`,
+      )
+      .join('');
+    for (const button of document.querySelectorAll<HTMLButtonElement>('#podium-races .podium-race')) {
+      button.addEventListener('click', () => {
+        const race = season.races.find((entry) => entry.round === Number(button.dataset.round));
+        if (race) this.showPodium(race);
+      });
+    }
+
+    if (this.pagePodium) this.showPodium(this.pagePodium);
+    else el('podium-card').hidden = true;
+  }
+
+  private showPodium(race: PodiumRace): void {
+    this.pagePodium = race;
+    for (const button of document.querySelectorAll<HTMLElement>('#podium-races .podium-race')) {
+      button.classList.toggle('is-active', Number(button.dataset.round) === race.round);
+    }
+
+    const circuit = BY_ID.get(race.circuitId);
+    el('podium-kicker').textContent = `${this.pageSeason} · ROUND ${race.round}`;
+    el('podium-title').textContent = `${race.short.toUpperCase()} GRAND PRIX`;
+    el('podium-meta').textContent = circuit
+      ? `${circuit.city}, ${circuit.country} · ${formatLength(circuit.length)}`
+      : race.gp.toUpperCase();
+
+    const path = el<SVGPathElement>('podium-path');
+    path.setAttribute('d', circuit ? circuit.path : '');
+    path.style.display = circuit ? '' : 'none';
+
+    el('podium-board').innerHTML = race.podium
+      .map(
+        (line) => `<div class="board-row">
+          <span class="rank">P${line.pos}</span>
+          <span class="name">${escapeHtml(line.driver)}<em>${escapeHtml(line.team)}</em></span>
+          <span class="pts">${escapeHtml(line.time)}</span>
+          <span class="dots">${line.pos === 1 ? 'WIN' : 'P' + line.pos}</span>
+        </div>`,
+      )
+      .join('');
+
+    el('podium-card').hidden = false;
   }
 
   private updateDaily(): void {
@@ -375,7 +458,7 @@ export class TraceApp {
   /* ------------------------------------------------------------------ */
 
   private startRun(): void {
-    if (this.mode === 'party') {
+    if (this.mode === 'party' || this.mode === 'podium') {
       el('party-panel').hidden = false;
       return;
     }

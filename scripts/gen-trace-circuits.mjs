@@ -160,7 +160,7 @@ const FROM_GEOJSON = {
   'be-1925': ['Circuit de Spa-Francorchamps', 'Spa-Francorchamps', 'Stavelot', 'Belgium', ['spa', 'francorchamps', 'spa francorchamps'], ['f1', 'f2', 'f3', 'f4', 'wec']],
   'it-1922': ['Autodromo Nazionale Monza', 'Monza', 'Monza', 'Italy', ['monza', 'autodromo nazionale di monza', 'temple of speed'], ['f1', 'f2', 'f3', 'f4']],
   'sg-2008': ['Marina Bay Street Circuit', 'Marina Bay', 'Singapore', 'Singapore', ['singapore', 'marina bay'], ['f1']],
-  'ru-2014': ['Sochi Autodrom', 'Sochi', 'Sochi', 'Russia', ['sochi'], []],
+  'ru-2014': ['Sochi Autodrom', 'Sochi', 'Sochi', 'Russia', ['sochi'], ['f1']],
   'jp-1962': ['Suzuka International Racing Course', 'Suzuka', 'Suzuka', 'Japan', ['suzuka'], ['f1']],
   'us-2012': ['Circuit of the Americas', 'COTA', 'Austin', 'United States', ['cota', 'austin', 'americas'], ['f1', 'nascar', 'wec']],
   'mx-1962': ['Autódromo Hermanos Rodríguez', 'Mexico City', 'Mexico City', 'Mexico', ['mexico', 'hermanos rodriguez', 'rodriguez brothers'], ['f1']],
@@ -168,14 +168,14 @@ const FROM_GEOJSON = {
   'ae-2009': ['Yas Marina Circuit', 'Yas Marina', 'Abu Dhabi', 'United Arab Emirates', ['abu dhabi', 'yas island', 'yas marina'], ['f1', 'f2', 'f3']],
   'it-1953': ['Autodromo Enzo e Dino Ferrari', 'Imola', 'Imola', 'Italy', ['imola', 'enzo e dino ferrari', 'san marino'], ['f4', 'wec']],
   'de-1927': ['Nürburgring', 'Nürburgring', 'Nürburg', 'Germany', ['nurburgring', 'nurburg', 'green hell'], ['f4']],
-  'pt-2008': ['Autódromo Internacional do Algarve', 'Portimão', 'Portimão', 'Portugal', ['portimao', 'algarve'], []],
+  'pt-2008': ['Autódromo Internacional do Algarve', 'Portimão', 'Portimão', 'Portugal', ['portimao', 'algarve'], ['wec']],
   'it-1914': ['Autodromo Internazionale del Mugello', 'Mugello', 'Scarperia', 'Italy', ['mugello'], ['f4']],
   'my-1999': ['Sepang International Circuit', 'Sepang', 'Sepang', 'Malaysia', ['sepang', 'kuala lumpur'], ['f1']],
-  'tr-2005': ['Intercity Istanbul Park', 'Istanbul Park', 'Istanbul', 'Türkiye', ['istanbul', 'turkey'], []],
+  'tr-2005': ['Intercity Istanbul Park', 'Istanbul Park', 'Istanbul', 'Türkiye', ['istanbul', 'turkey'], ['f1', 'f4']],
   'nl-1948': ['Circuit Zandvoort', 'Zandvoort', 'Zandvoort', 'Netherlands', ['zandvoort'], ['f1', 'f4']],
   'fr-1960': ['Circuit de Nevers Magny-Cours', 'Magny-Cours', 'Magny-Cours', 'France', ['magny cours', 'nevers'], ['f4']],
-  'pt-1972': ['Autódromo do Estoril', 'Estoril', 'Estoril', 'Portugal', ['estoril'], []],
-  'br-1977': ['Autódromo Internacional Nelson Piquet', 'Jacarepaguá', 'Rio de Janeiro', 'Brazil', ['jacarepagua', 'rio', 'nelson piquet'], []],
+  'pt-1972': ['Autódromo do Estoril', 'Estoril', 'Estoril', 'Portugal', ['estoril'], ['f4']],
+  'br-1977': ['Autódromo Internacional Nelson Piquet', 'Jacarepaguá', 'Rio de Janeiro', 'Brazil', ['jacarepagua', 'rio', 'nelson piquet'], ['f1']],
   'sa-2021': ['Jeddah Corniche Circuit', 'Jeddah', 'Jeddah', 'Saudi Arabia', ['jeddah', 'corniche'], ['f1']],
   'us-2022': ['Miami International Autodrome', 'Miami', 'Miami Gardens', 'United States', ['miami'], ['f1']],
   'qa-2004': ['Losail International Circuit', 'Lusail', 'Lusail', 'Qatar', ['lusail', 'losail', 'qatar'], ['f1', 'f2', 'f3', 'wec']],
@@ -183,8 +183,8 @@ const FROM_GEOJSON = {
   'az-2016': ['Baku City Circuit', 'Baku', 'Baku', 'Azerbaijan', ['baku'], ['f1', 'f2']],
   'us-2023': ['Las Vegas Street Circuit', 'Las Vegas', 'Las Vegas', 'United States', ['vegas', 'las vegas strip'], ['f1']],
   'us-1909': ['Indianapolis Motor Speedway', 'Indianapolis', 'Speedway', 'United States', ['indy', 'indianapolis', 'brickyard', 'indy 500'], ['nascar', 'indycar']],
-  'ar-1952': ['Autódromo Oscar y Juan Gálvez', 'Buenos Aires', 'Buenos Aires', 'Argentina', ['galvez', 'oscar y juan galvez'], []],
-  'za-1961': ['Kyalami Grand Prix Circuit', 'Kyalami', 'Johannesburg', 'South Africa', ['kyalami', 'midrand'], []],
+  'ar-1952': ['Autódromo Oscar y Juan Gálvez', 'Buenos Aires', 'Buenos Aires', 'Argentina', ['galvez', 'oscar y juan galvez'], ['f1']],
+  'za-1961': ['Kyalami Grand Prix Circuit', 'Kyalami', 'Johannesburg', 'South Africa', ['kyalami', 'midrand'], ['f1']],
   'us-1956': ['Watkins Glen International', 'Watkins Glen', 'Watkins Glen', 'United States', ['the glen', 'watkins glen'], ['nascar']],
 };
 
@@ -863,6 +863,526 @@ const MORE = [
   },
 ];
 
+/* ------------------------------------------------------------------ */
+/* MORE_TRACKS — historic, national and club venues                    */
+/* ------------------------------------------------------------------ */
+
+const MORE_TRACKS = [
+  /* ---- Australia / Asia-Pacific ---- */
+  {
+    id: 'au-adelaide', name: 'Adelaide Street Circuit', short: 'Adelaide', city: 'Adelaide',
+    country: 'Australia', length: 3220, series: ['f4'],
+    aliases: ['adelaide', 'victoria park'], squash: [1, 0.66],
+    shape: poly([
+      [-460, -240], [-180, -250], [120, -252], [300, -246], [380, -190], [420, -80],
+      [400, 60], [330, 140], [200, 180], [-20, 190], [-220, 200], [-380, 180], [-460, 90], [-470, -90],
+    ], 2),
+  },
+  {
+    id: 'au-bathurst', name: 'Mount Panorama Circuit', short: 'Bathurst', city: 'Bathurst',
+    country: 'Australia', length: 6213, series: ['f4'],
+    aliases: ['bathurst', 'mount panorama', 'the mountain'], squash: [1, 0.5],
+    shape: poly([
+      [-470, -90], [-300, -150], [-80, -170], [160, -170], [360, -140], [470, -60],
+      [480, 30], [430, 90], [330, 60], [250, 110], [150, 190], [40, 240], [-40, 220],
+      [-120, 300], [-240, 340], [-380, 300], [-460, 200], [-480, 60],
+    ], 2),
+  },
+  {
+    id: 'au-phillip-island', name: 'Phillip Island Grand Prix Circuit', short: 'Phillip Island', city: 'Ventnor',
+    country: 'Australia', length: 4445, series: ['f4'],
+    aliases: ['phillip island', 'ventnor'], squash: [1, 0.7],
+    shape: poly([
+      [-460, -120], [-260, -230], [0, -250], [240, -210], [420, -110], [470, 20],
+      [400, 120], [250, 120], [150, 40], [40, -10], [-80, 40], [-160, 140], [-300, 190], [-440, 140], [-490, 20],
+    ], 2),
+  },
+  {
+    id: 'jp-okayama', name: 'Okayama International Circuit', short: 'Okayama', city: 'Mimasaka',
+    country: 'Japan', length: 3703, series: ['f4'],
+    aliases: ['okayama', 'ti aida', 'aida'], squash: [1, 0.8],
+    shape: poly([
+      [-430, -200], [-150, -250], [140, -240], [380, -180], [450, -60], [380, 40],
+      [300, 20], [250, 120], [120, 210], [-40, 190], [-120, 90], [-240, 60], [-330, 150], [-440, 120], [-480, -40],
+    ], 2),
+  },
+  {
+    id: 'jp-autopolis', name: 'Autopolis', short: 'Autopolis', city: 'Hita',
+    country: 'Japan', length: 4674, series: ['f4'],
+    aliases: ['autopolis', 'hita'], squash: [1, 0.72],
+    shape: poly([
+      [-450, -230], [-200, -270], [60, -240], [260, -170], [380, -60], [420, 60],
+      [340, 140], [220, 110], [160, 190], [40, 250], [-80, 210], [-140, 120], [-260, 100],
+      [-360, 180], [-460, 120], [-490, -60],
+    ], 2),
+  },
+  {
+    id: 'jp-sugo', name: 'Sportsland Sugo', short: 'Sugo', city: 'Murata',
+    country: 'Japan', length: 3704, series: ['f4'],
+    aliases: ['sugo', 'sportsland sugo', 'murata'], squash: [1, 0.78],
+    shape: poly([
+      [-430, -170], [-220, -240], [40, -250], [280, -200], [430, -100], [450, 30],
+      [370, 120], [240, 120], [160, 50], [60, 40], [-40, 110], [-160, 180], [-300, 180], [-420, 110], [-470, -20],
+    ], 2),
+  },
+  {
+    id: 'cn-zhuhai', name: 'Zhuhai International Circuit', short: 'Zhuhai', city: 'Zhuhai',
+    country: 'China', length: 4300, series: ['f4'],
+    aliases: ['zhuhai'], squash: [1, 0.7],
+    shape: poly([
+      [-460, -200], [-200, -250], [80, -250], [340, -200], [460, -90], [450, 40],
+      [360, 110], [240, 80], [180, -10], [80, -20], [-20, 60], [-140, 140], [-300, 170], [-430, 110], [-480, -40],
+    ], 2),
+  },
+  {
+    id: 'kr-yeongam', name: 'Korea International Circuit', short: 'Yeongam', city: 'Yeongam',
+    country: 'South Korea', length: 5615, series: ['f4'],
+    aliases: ['yeongam', 'korea', 'korean international circuit'], squash: [1, 0.62],
+    shape: poly([
+      [-470, 140], [-470, -60], [-380, -180], [-200, -210], [0, -200], [180, -170],
+      [300, -90], [330, 20], [280, 110], [180, 140], [100, 80], [0, 60], [-80, 120],
+      [-180, 190], [-320, 210], [-430, 190],
+    ], 2),
+  },
+  {
+    id: 'in-buddh', name: 'Buddh International Circuit', short: 'Buddh', city: 'Greater Noida',
+    country: 'India', length: 5141, series: ['f4'],
+    aliases: ['buddh', 'greater noida', 'india'], squash: [1, 0.68],
+    shape: poly([
+      [-460, -140], [-260, -220], [0, -240], [260, -200], [420, -110], [450, 20],
+      [350, 70], [250, 30], [180, 110], [60, 200], [-60, 180], [-120, 80], [-240, 50], [-350, 120], [-460, 80],
+    ], 2),
+  },
+  {
+    id: 'ae-dubai-autodrome', name: 'Dubai Autodrome', short: 'Dubai', city: 'Dubai',
+    country: 'United Arab Emirates', length: 5390, series: ['f4'],
+    aliases: ['dubai', 'dubai autodrome', 'motor city'], squash: [1, 0.66],
+    shape: poly([
+      [-470, 60], [-400, -100], [-250, -200], [-40, -230], [180, -210], [360, -150],
+      [450, -40], [430, 70], [340, 120], [240, 90], [160, 160], [40, 220], [-100, 200],
+      [-220, 140], [-350, 170], [-450, 140],
+    ], 2),
+  },
+  {
+    id: 'ru-moscow-raceway', name: 'Moscow Raceway', short: 'Moscow Raceway', city: 'Volokolamsk',
+    country: 'Russia', length: 4070, series: ['f4'],
+    aliases: ['moscow raceway', 'volokolamsk'], squash: [1, 0.72],
+    shape: poly([
+      [-450, -180], [-250, -240], [0, -250], [250, -220], [420, -140], [470, -20],
+      [400, 90], [280, 90], [200, 30], [100, 60], [0, 150], [-120, 200], [-280, 200], [-400, 140], [-470, 20],
+    ], 2),
+  },
+
+  /* ---- Germany / Austria / Spain ---- */
+  {
+    id: 'de-nordschleife', name: 'Nürburgring Nordschleife', short: 'Nordschleife', city: 'Nürburg',
+    country: 'Germany', length: 20832, series: ['f1', 'f4'],
+    aliases: ['nordschleife', 'green hell', 'north loop'], squash: [1, 0.55],
+    shape: poly([
+      [-480, -60], [-430, -180], [-300, -260], [-120, -280], [60, -260], [200, -200],
+      [300, -120], [380, -140], [440, -60], [420, 60], [340, 120], [280, 200], [180, 260],
+      [60, 240], [-20, 160], [-100, 180], [-160, 260], [-260, 250], [-320, 160], [-380, 180],
+      [-450, 120], [-490, 20],
+    ], 2),
+  },
+  {
+    id: 'de-nurburgring-gp', name: 'Nürburgring GP-Strecke', short: 'Nürburgring GP', city: 'Nürburg',
+    country: 'Germany', length: 5148, series: ['f4'],
+    aliases: ['gp strecke', 'nurburgring gp'], squash: [1, 0.76],
+    shape: poly([
+      [-450, -190], [-220, -250], [40, -250], [300, -210], [450, -120], [470, 10],
+      [400, 100], [300, 80], [220, 20], [120, 40], [40, 130], [-60, 200], [-200, 210], [-340, 170], [-440, 80],
+    ], 2),
+  },
+  {
+    id: 'de-avus', name: 'AVUS', short: 'AVUS', city: 'Berlin',
+    country: 'Germany', length: 8300, series: ['f1'],
+    aliases: ['avus', 'berlin'], squash: [1, 0.4],
+    shape: poly([
+      [-470, -60], [-460, -240], [460, -250], [470, -80], [470, 60], [460, 240],
+      [-460, 250], [-470, 80],
+    ], 1),
+  },
+  {
+    id: 'at-osterreichring', name: 'Österreichring', short: 'Österreichring', city: 'Spielberg',
+    country: 'Austria', length: 5940, series: ['f1'],
+    aliases: ['osterreichring', 'austrian ring'], squash: [1, 0.72],
+    shape: poly([
+      [-470, -120], [-380, -230], [-200, -270], [0, -260], [200, -230], [380, -160],
+      [460, -50], [450, 70], [370, 150], [250, 140], [180, 60], [80, 40], [-40, 100],
+      [-180, 180], [-330, 190], [-440, 130],
+    ], 2),
+  },
+  {
+    id: 'at-salzburgring', name: 'Salzburgring', short: 'Salzburgring', city: 'Plainfeld',
+    country: 'Austria', length: 4230, series: ['f4'],
+    aliases: ['salzburgring', 'plainfeld'], squash: [1, 0.66],
+    shape: poly([
+      [-460, -80], [-360, -200], [-180, -250], [20, -250], [220, -210], [380, -140],
+      [450, -40], [430, 60], [340, 110], [220, 80], [140, 140], [20, 210], [-120, 200],
+      [-260, 170], [-390, 150], [-460, 60],
+    ], 2),
+  },
+  {
+    id: 'es-montjuic', name: 'Montjuïc Circuit', short: 'Montjuïc', city: 'Barcelona',
+    country: 'Spain', length: 3791, series: ['f1'],
+    aliases: ['montjuic', 'montjuich'], squash: [1, 0.72],
+    shape: poly([
+      [-440, -170], [-220, -240], [20, -240], [240, -200], [400, -110], [440, 0],
+      [360, 70], [260, 40], [200, 120], [80, 190], [-60, 180], [-120, 90], [-240, 60], [-350, 130], [-440, 60],
+    ], 2),
+  },
+  {
+    id: 'es-pedralbes', name: 'Circuit de Pedralbes', short: 'Pedralbes', city: 'Barcelona',
+    country: 'Spain', length: 6300, series: ['f1'],
+    aliases: ['pedralbes'], squash: [1, 0.62],
+    shape: poly([
+      [-470, -100], [-400, -220], [-220, -280], [0, -280], [220, -240], [400, -160],
+      [460, -40], [420, 70], [320, 60], [240, 130], [100, 210], [-60, 210], [-200, 160],
+      [-340, 190], [-450, 140], [-480, 20],
+    ], 2),
+  },
+
+  /* ---- France / Italy ---- */
+  {
+    id: 'fr-bugatti', name: 'Bugatti Circuit', short: 'Bugatti', city: 'Le Mans',
+    country: 'France', length: 4185, series: ['f4', 'wec'],
+    aliases: ['bugatti', 'le mans bugatti'], squash: [1, 0.7],
+    shape: poly([
+      [-440, -190], [-220, -250], [20, -250], [260, -210], [420, -120], [450, 0],
+      [380, 80], [260, 60], [180, 130], [60, 200], [-80, 190], [-180, 120], [-300, 150], [-420, 90],
+    ], 2),
+  },
+  {
+    id: 'fr-charade', name: 'Charade Circuit', short: 'Charade', city: 'Clermont-Ferrand',
+    country: 'France', length: 8055, series: ['f1'],
+    aliases: ['charade', 'clermont-ferrand'], squash: [1, 0.7],
+    shape: poly([
+      [-470, -40], [-420, -170], [-280, -250], [-100, -260], [80, -230], [220, -160],
+      [330, -170], [420, -110], [450, 0], [400, 110], [300, 170], [200, 140], [140, 60],
+      [40, 30], [-60, 100], [-160, 190], [-300, 220], [-420, 180], [-480, 90],
+    ], 2),
+  },
+  {
+    id: 'fr-reims', name: 'Reims-Gueux', short: 'Reims', city: 'Gueux',
+    country: 'France', length: 8302, series: ['f1'],
+    aliases: ['reims', 'gueux', 'reims-gueux'], squash: [1, 0.56],
+    shape: poly([
+      [-480, -160], [-200, -200], [100, -200], [420, -180], [470, -80], [440, 40],
+      [330, 60], [220, 100], [60, 160], [-120, 190], [-300, 200], [-460, 150],
+    ], 2),
+  },
+  {
+    id: 'fr-rouen', name: 'Rouen-Les-Essarts', short: 'Rouen', city: 'Orival',
+    country: 'France', length: 6542, series: ['f1'],
+    aliases: ['rouen', 'les essarts'], squash: [1, 0.66],
+    shape: poly([
+      [-460, -150], [-260, -230], [-20, -250], [200, -220], [380, -140], [460, -30],
+      [420, 80], [320, 90], [240, 30], [140, 20], [60, 100], [-60, 180], [-220, 210],
+      [-380, 170], [-470, 60],
+    ], 2),
+  },
+  {
+    id: 'it-pescara', name: 'Pescara Circuit', short: 'Pescara', city: 'Pescara',
+    country: 'Italy', length: 25800, series: ['f1'],
+    aliases: ['pescara', 'coppa acerbo'], squash: [1, 0.6],
+    shape: poly([
+      [-490, -100], [-430, -240], [-300, -300], [-120, -310], [60, -280], [220, -220],
+      [380, -240], [470, -160], [480, -20], [420, 90], [340, 60], [280, 140], [180, 240],
+      [60, 300], [-60, 280], [-140, 190], [-240, 160], [-320, 220], [-420, 220], [-490, 120],
+    ], 2),
+  },
+  {
+    id: 'it-adria', name: 'Adria International Raceway', short: 'Adria', city: 'Adria',
+    country: 'Italy', length: 2702, series: ['f4'],
+    aliases: ['adria'], squash: [1, 0.78],
+    shape: poly([
+      [-450, -180], [-250, -240], [-20, -240], [200, -210], [370, -130], [440, -20],
+      [400, 80], [300, 80], [220, 20], [120, 40], [40, 130], [-80, 200], [-240, 200], [-380, 150], [-460, 40],
+    ], 2),
+  },
+
+  /* ---- Britain / Ireland ---- */
+  {
+    id: 'gb-aintree', name: 'Aintree Motor Racing Circuit', short: 'Aintree', city: 'Liverpool',
+    country: 'United Kingdom', length: 4828, series: ['f1'],
+    aliases: ['aintree', 'liverpool'], squash: [1, 0.6],
+    shape: poly([
+      [-470, -150], [-200, -200], [100, -200], [380, -170], [460, -60], [430, 50],
+      [330, 50], [240, 110], [100, 170], [-80, 200], [-260, 200], [-420, 160], [-480, 40],
+    ], 2),
+  },
+  {
+    id: 'gb-brandhatch-indy', name: 'Brands Hatch Indy Circuit', short: 'Brands Indy', city: 'West Kingsdown',
+    country: 'United Kingdom', length: 1944, series: ['f4'],
+    aliases: ['brands hatch indy', 'indy circuit'], squash: [1, 0.8],
+    shape: poly([
+      [-420, -160], [-200, -230], [40, -230], [260, -190], [400, -100], [420, 10],
+      [340, 80], [220, 50], [140, 120], [20, 180], [-140, 170], [-280, 120], [-400, 40],
+    ], 2),
+  },
+  {
+    id: 'gb-croft', name: 'Croft Circuit', short: 'Croft', city: 'Dalton-on-Tees',
+    country: 'United Kingdom', length: 3400, series: ['f4'],
+    aliases: ['croft', 'dalton-on-tees'], squash: [1, 0.76],
+    shape: poly([
+      [-430, -190], [-220, -250], [-20, -250], [180, -220], [330, -150], [330, -40],
+      [250, 20], [270, 110], [170, 190], [40, 200], [-60, 150], [-160, 150], [-260, 200],
+      [-380, 160], [-450, 60],
+    ], 2),
+  },
+  {
+    id: 'gb-knockhill', name: 'Knockhill Racing Circuit', short: 'Knockhill', city: 'Dunfermline',
+    country: 'United Kingdom', length: 2092, series: ['f4'],
+    aliases: ['knockhill', 'dunfermline'], squash: [1, 0.8],
+    shape: poly([
+      [-420, -170], [-230, -240], [-30, -240], [170, -200], [300, -120], [300, -20],
+      [220, 40], [230, 130], [120, 200], [-20, 190], [-90, 110], [-180, 120], [-280, 190],
+      [-400, 140], [-450, 20],
+    ], 2),
+  },
+  {
+    id: 'gb-cadwell-park', name: 'Cadwell Park', short: 'Cadwell Park', city: 'Louth',
+    country: 'United Kingdom', length: 3480, series: ['f4'],
+    aliases: ['cadwell', 'cadwell park', 'louth'], squash: [1, 0.7],
+    shape: poly([
+      [-440, -160], [-260, -240], [-40, -250], [160, -210], [300, -130], [330, -20],
+      [270, 70], [180, 90], [120, 20], [30, 30], [-60, 110], [-150, 190], [-290, 220],
+      [-410, 170], [-470, 60],
+    ], 2),
+  },
+  {
+    id: 'gb-castle-combe', name: 'Castle Combe Circuit', short: 'Castle Combe', city: 'Chippenham',
+    country: 'United Kingdom', length: 2980, series: ['f4'],
+    aliases: ['castle combe', 'chippenham'], squash: [1, 0.7],
+    shape: poly([
+      [-440, -150], [-240, -230], [0, -250], [240, -210], [410, -120], [440, 0],
+      [360, 70], [260, 40], [200, 120], [80, 190], [-60, 180], [-160, 110], [-280, 120],
+      [-400, 80], [-460, -30],
+    ], 2),
+  },
+  {
+    id: 'gb-anglesey', name: 'Anglesey Circuit', short: 'Anglesey', city: 'Aberffraw',
+    country: 'United Kingdom', length: 3200, series: ['f4'],
+    aliases: ['anglesey', 'ty croes', 'aberffraw'], squash: [1, 0.66],
+    shape: poly([
+      [-450, -140], [-300, -230], [-80, -260], [140, -230], [340, -160], [450, -60],
+      [440, 40], [340, 60], [260, 140], [120, 210], [-20, 190], [-120, 120], [-240, 140],
+      [-360, 190], [-450, 120], [-480, -20],
+    ], 2),
+  },
+  {
+    id: 'gb-mallory-park', name: 'Mallory Park', short: 'Mallory Park', city: 'Kirkby Mallory',
+    country: 'United Kingdom', length: 1600, series: ['f4'],
+    aliases: ['mallory', 'mallory park', 'kirkby mallory'], squash: [1, 0.8],
+    shape: poly([
+      [-420, -150], [-220, -220], [0, -230], [220, -200], [380, -120], [400, -10],
+      [300, 60], [180, 40], [100, 110], [-20, 170], [-180, 160], [-320, 110], [-420, 20],
+    ], 2),
+  },
+
+  /* ---- Northern + Central Europe ---- */
+  {
+    id: 'hr-grobnik', name: 'Automotodrom Grobnik', short: 'Grobnik', city: 'Rijeka',
+    country: 'Croatia', length: 4168, series: ['f4'],
+    aliases: ['grobnik', 'rijeka'], squash: [1, 0.72],
+    shape: poly([
+      [-450, -170], [-250, -240], [-20, -250], [200, -210], [380, -130], [440, -20],
+      [390, 80], [290, 70], [220, 10], [120, 40], [40, 130], [-80, 200], [-240, 200],
+      [-390, 150], [-460, 40],
+    ], 2),
+  },
+  {
+    id: 'pt-braga', name: 'Circuito Vasco Sameiro', short: 'Braga', city: 'Palmeira',
+    country: 'Portugal', length: 3000, series: ['f4'],
+    aliases: ['braga', 'vasco sameiro'], squash: [1, 0.76],
+    shape: poly([
+      [-420, -180], [-220, -240], [0, -240], [210, -200], [360, -120], [380, -10],
+      [300, 60], [190, 40], [110, 110], [-10, 170], [-150, 170], [-260, 120], [-380, 60], [-440, -40],
+    ], 2),
+  },
+  {
+    id: 'pl-poznan', name: 'Poznań Circuit', short: 'Poznań', city: 'Poznań',
+    country: 'Poland', length: 4083, series: ['f4'],
+    aliases: ['poznan', 'poznan circuit'], squash: [1, 0.7],
+    shape: poly([
+      [-460, -190], [-260, -250], [-20, -250], [220, -210], [400, -120], [450, -10],
+      [390, 90], [280, 90], [210, 30], [110, 60], [30, 150], [-90, 210], [-250, 210],
+      [-390, 160], [-460, 60],
+    ], 2),
+  },
+  {
+    id: 'se-anderstorp', name: 'Scandinavian Raceway', short: 'Anderstorp', city: 'Anderstorp',
+    country: 'Sweden', length: 4030, series: ['f4'],
+    aliases: ['anderstorp', 'scandinavian raceway'], squash: [1, 0.66],
+    shape: poly([
+      [-430, -160], [-230, -230], [0, -240], [220, -200], [380, -120], [400, 0],
+      [320, 70], [210, 50], [140, 120], [20, 180], [-130, 170], [-240, 110], [-350, 140], [-440, 70],
+    ], 2),
+  },
+  {
+    id: 'fi-kymiring', name: 'KymiRing', short: 'KymiRing', city: 'Iitti',
+    country: 'Finland', length: 4650, series: ['f4'],
+    aliases: ['kymiring', 'iitti'], squash: [1, 0.68],
+    shape: poly([
+      [-460, -180], [-260, -250], [-20, -260], [220, -220], [400, -130], [450, -10],
+      [390, 90], [290, 70], [230, 0], [140, 20], [70, 110], [-40, 190], [-180, 210],
+      [-320, 180], [-430, 120], [-470, 20],
+    ], 2),
+  },
+  {
+    id: 'ma-ain-diab', name: 'Circuit d’Ain-Diab', short: 'Ain-Diab', city: 'Casablanca',
+    country: 'Morocco', length: 7618, series: ['f1'],
+    aliases: ['ain-diab', 'casablanca', 'morocco'], squash: [1, 0.58],
+    shape: poly([
+      [-470, -120], [-380, -240], [-200, -290], [20, -290], [240, -250], [420, -160],
+      [470, -30], [410, 80], [300, 70], [220, 140], [80, 220], [-80, 220], [-220, 170],
+      [-350, 200], [-460, 150],
+    ], 2),
+  },
+  {
+    id: 'pt-monsanto', name: 'Circuito de Monsanto', short: 'Monsanto', city: 'Lisbon',
+    country: 'Portugal', length: 5450, series: ['f1'],
+    aliases: ['monsanto', 'lisbon'], squash: [1, 0.62],
+    shape: poly([
+      [-450, -190], [-250, -260], [-20, -260], [210, -220], [380, -140], [420, -30],
+      [350, 60], [250, 40], [180, 110], [60, 180], [-80, 170], [-170, 90], [-290, 100],
+      [-390, 60], [-450, -50],
+    ], 2),
+  },
+
+  /* ---- North America ---- */
+  {
+    id: 'us-road-atlanta', name: 'Road Atlanta', short: 'Road Atlanta', city: 'Braselton',
+    country: 'United States', length: 4088, series: ['wec'],
+    aliases: ['road atlanta', 'braselton', 'petit le mans'], squash: [1, 0.68],
+    shape: poly([
+      [-450, -200], [-250, -260], [-20, -260], [200, -220], [380, -140], [430, -30],
+      [380, 60], [280, 50], [200, 120], [80, 200], [-40, 180], [-120, 90], [-240, 80],
+      [-340, 150], [-440, 110], [-470, -40],
+    ], 2),
+  },
+  {
+    id: 'us-vir', name: 'Virginia International Raceway', short: 'VIR', city: 'Alton',
+    country: 'United States', length: 5262, series: ['wec'],
+    aliases: ['vir', 'virginia international raceway', 'alton'], squash: [1, 0.66],
+    shape: poly([
+      [-460, -190], [-240, -260], [0, -260], [230, -220], [400, -130], [440, -10],
+      [380, 90], [270, 70], [200, 10], [100, 40], [20, 130], [-100, 200], [-250, 210],
+      [-390, 160], [-460, 60],
+    ], 2),
+  },
+  {
+    id: 'us-lime-rock', name: 'Lime Rock Park', short: 'Lime Rock', city: 'Lakeville',
+    country: 'United States', length: 2462, series: ['wec'],
+    aliases: ['lime rock', 'lakeville'], squash: [1, 0.72],
+    shape: poly([
+      [-420, -170], [-220, -240], [0, -240], [210, -200], [360, -110], [370, 0],
+      [290, 60], [180, 40], [100, 110], [-20, 170], [-170, 160], [-280, 100], [-390, 60], [-440, -50],
+    ], 2),
+  },
+  {
+    id: 'us-miller', name: 'Utah Motorsports Campus', short: 'Miller', city: 'Grantsville',
+    country: 'United States', length: 4905, series: ['wec'],
+    aliases: ['miller', 'utah motorsports campus', 'grantsville'], squash: [1, 0.66],
+    shape: poly([
+      [-470, -120], [-400, -230], [-200, -280], [40, -270], [260, -230], [420, -140],
+      [460, -20], [400, 90], [300, 80], [240, 10], [140, 40], [60, 130], [-60, 200],
+      [-200, 220], [-350, 180], [-450, 90],
+    ], 2),
+  },
+  {
+    id: 'us-la-coliseum', name: 'Los Angeles Memorial Coliseum', short: 'LA Coliseum', city: 'Los Angeles',
+    country: 'United States', length: 402, series: ['nascar'],
+    aliases: ['coliseum', 'la coliseum', 'los angeles'], shape: oval(240, 120, 3.2, 10),
+  },
+  {
+    id: 'us-irwindale', name: 'Irwindale Speedway', short: 'Irwindale', city: 'Irwindale',
+    country: 'United States', length: 805, series: ['nascar'],
+    aliases: ['irwindale', 'toyota speedway'], shape: oval(300, 150, 3.4, 14),
+  },
+  {
+    id: 'us-south-boston', name: 'South Boston Speedway', short: 'South Boston', city: 'South Boston',
+    country: 'United States', length: 644, series: ['nascar'],
+    aliases: ['south boston', 'sobo'], shape: oval(240, 120, 4.2, 0),
+  },
+  {
+    id: 'us-memphis', name: 'Memphis International Raceway', short: 'Memphis', city: 'Millington',
+    country: 'United States', length: 1207, series: ['nascar'],
+    aliases: ['memphis', 'millington'], shape: oval(360, 180, 3.6, 18),
+  },
+  {
+    id: 'us-dallas', name: 'Fair Park Circuit', short: 'Dallas', city: 'Dallas',
+    country: 'United States', length: 3884, series: ['f1'],
+    aliases: ['dallas', 'fair park'], squash: [1, 0.7],
+    shape: poly([
+      [-450, -120], [-300, -220], [-80, -250], [140, -230], [330, -170], [420, -80],
+      [400, 20], [300, 40], [220, 110], [90, 180], [-50, 170], [-140, 90], [-260, 80],
+      [-370, 130], [-450, 50],
+    ], 2),
+  },
+  {
+    id: 'us-phoenix-street', name: 'Phoenix Street Circuit', short: 'Phoenix Street', city: 'Phoenix',
+    country: 'United States', length: 3719, series: ['f1'],
+    aliases: ['phoenix street', 'downtown phoenix'], squash: [1, 0.64],
+    shape: poly([
+      [-460, -60], [-380, -180], [-200, -230], [20, -230], [240, -200], [400, -120],
+      [430, -10], [350, 60], [240, 40], [160, 110], [40, 170], [-110, 160], [-200, 80],
+      [-320, 100], [-430, 150], [-470, 60],
+    ], 2),
+  },
+  {
+    id: 'us-caesars-palace', name: 'Caesars Palace Circuit', short: 'Caesars Palace', city: 'Las Vegas',
+    country: 'United States', length: 3650, series: ['f1'],
+    aliases: ['caesars palace', 'las vegas caesars'], squash: [1, 0.66],
+    shape: poly([
+      [-460, 120], [-420, -60], [-300, -180], [-100, -220], [120, -210], [320, -160],
+      [430, -80], [450, 20], [370, 90], [280, 80], [220, 150], [100, 210], [-40, 210],
+      [-160, 160], [-280, 190], [-400, 190],
+    ], 2),
+  },
+  {
+    id: 'us-riverside', name: 'Riverside International Raceway', short: 'Riverside', city: 'Riverside',
+    country: 'United States', length: 5280, series: ['f1'],
+    aliases: ['riverside'], squash: [1, 0.62],
+    shape: poly([
+      [-470, -160], [-340, -250], [-140, -290], [80, -280], [290, -240], [430, -160],
+      [460, -40], [400, 70], [300, 60], [230, 130], [100, 210], [-40, 200], [-140, 120],
+      [-270, 140], [-400, 190], [-470, 80],
+    ], 2),
+  },
+  {
+    id: 'ca-mosport', name: 'Canadian Tire Motorsport Park', short: 'Mosport', city: 'Bowmanville',
+    country: 'Canada', length: 3940, series: ['wec'],
+    aliases: ['mosport', 'canadian tire motorsport park', 'bowmanville'], squash: [1, 0.7],
+    shape: poly([
+      [-460, -180], [-260, -250], [-20, -260], [210, -220], [390, -130], [440, -10],
+      [380, 90], [270, 70], [200, 10], [100, 40], [20, 130], [-100, 200], [-250, 210],
+      [-390, 160], [-460, 60],
+    ], 2),
+  },
+  {
+    id: 'ca-mont-tremblant', name: 'Circuit Mont-Tremblant', short: 'Mont-Tremblant', city: 'Mont-Tremblant',
+    country: 'Canada', length: 4258, series: ['wec'],
+    aliases: ['mont-tremblant', 'tremblant'], squash: [1, 0.68],
+    shape: poly([
+      [-440, -170], [-240, -250], [-10, -260], [210, -220], [380, -140], [420, -30],
+      [350, 60], [250, 40], [180, 110], [60, 180], [-80, 170], [-160, 90], [-280, 100],
+      [-390, 60], [-450, -50],
+    ], 2),
+  },
+  {
+    id: 'br-goiania', name: 'Autódromo Internacional Ayrton Senna', short: 'Goiânia', city: 'Goiânia',
+    country: 'Brazil', length: 3800, series: ['f4'],
+    aliases: ['goiania', 'ayrton senna goiania'], squash: [1, 0.7],
+    shape: poly([
+      [-440, -190], [-240, -250], [-20, -250], [200, -210], [370, -130], [420, -20],
+      [360, 70], [260, 50], [190, 120], [70, 190], [-70, 180], [-150, 100], [-270, 110],
+      [-380, 80], [-450, -40],
+    ], 2),
+  },
+];
+
 const geojson = JSON.parse(readFileSync(resolve(root, 'public/assets/tracks/circuits.geojson'), 'utf8'));
 const circuits = [];
 
@@ -892,7 +1412,7 @@ for (const feature of geojson.features) {
   });
 }
 
-for (const entry of [...SCHEMATIC, ...EXTRA, ...MORE]) {
+for (const entry of [...SCHEMATIC, ...EXTRA, ...MORE, ...MORE_TRACKS]) {
   const [sx, sy] = entry.squash ?? [1, 1];
   circuits.push({
     id: entry.id,

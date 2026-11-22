@@ -10,7 +10,7 @@ The site root is a redirect to the shelf, and the repository is published as `MH
 | --- | --- | --- | --- |
 | 01 | [**DEEP ATLAS**](games/deep-atlas/) | Geography rarity game — name the most obscure real place that fits the prompt | 7,970 places · 5 modes · 3 clocks · daily · party |
 | 02 | [**GP 2026**](games/apex-gp-2026/) | Open-wheel, GT, prototype, hypercar, stock and kart racing, plus gravel rally | 41 circuits · 8 cars · 2 rally stages · time trial · party |
-| 03 | [**TRACE**](games/trace/) | Circuit recognition — one unlabeled centerline, one name | 113 circuits · 10 championships · 3 difficulties · daily · party |
+| 03 | [**TRACE**](games/trace/) | Circuit recognition — one unlabeled centerline, one name | 167 circuits · 10 championships · 3 difficulties · podium archive · daily · party |
 
 All three share the same shape: pick a mode, get a seeded set of rounds, answer against a clock, and copy an emoji result grid when the run ends. Scores, streaks and settings live in `localStorage`; private parties use a six-digit code over PeerJS, with no account and no server of ours.
 
@@ -74,13 +74,14 @@ The bundled database holds **7,970 places** — 195 countries, 5,082 cities, 1,0
 
 A circuit-recognition game at [`/games/trace/`](games/trace/): one unlabeled centerline, one name.
 
-- **113 circuits** across F1, F2, F3, F4, WEC, NASCAR and IndyCar — 40 real GPS traces from the racing game's track data plus 73 schematic ovals, airfield, street and road courses.
+- **167 circuits** across F1, F2, F3, F4, WEC, NASCAR and IndyCar — 40 real GPS traces from the racing game's track data plus 127 schematic ovals, airfield, street, historic and national road courses.
 - **Ten championships:** each series on its own, plus **MIXED** (all seven), **FEEDER** (F2/F3/F4) and **AMERICAN** (NASCAR/IndyCar). A championship run draws eight circuits from its pool in a fresh order.
-- **Three modes:** championship, the shared daily trace (a date seed, so everyone reads the same eight outlines until local midnight) and private parties. The host picks the championship and difficulty, the six-digit code admits guests, every browser starts the same eight circuit ids, and scores stream into a live board and final standings.
+- **Podium archive:** every round of the 2024 and 2025 F1 seasons with its top three, teams and gaps, next to the circuit outline. Pick a season, pick a Grand Prix.
+- **Four modes:** championship, the shared daily trace (a date seed, so everyone reads the same eight outlines until local midnight), private parties and the podium archive. The host picks the championship and difficulty, the six-digit code admits guests, every browser starts the same eight circuit ids, and scores stream into a live board and final standings.
 - **Three difficulties** — ROOKIE, PRO and LEGEND, which rotates and flips the line — changing guesses, clock, country hint and score multiplier. Answers are typo-tolerant and accept city and short-name aliases.
 - **Results** copy out as an emoji share grid; streak and best-run records stay in `localStorage`.
 
-The schematic outlines are hand-traced from the real layouts and normalised to a common box; `scripts/gen-trace-circuits.mjs` rebuilds `games/trace/data/circuits.json` from the GPS GeoJSON plus those traces. **TRACE 1.0** is tagged `trace-v1`, and the current build is the 1.0.1 bug-fix pass tagged `trace-v1.0.1`. Both ship as the Pages build — there are no downloadable assets, the browser game is the release.
+The schematic outlines are hand-traced from the real layouts and normalised to a common box; `scripts/gen-trace-circuits.mjs` rebuilds `games/trace/data/circuits.json` from the GPS GeoJSON plus those traces. Podium results come from the Wikipedia race classifications. **TRACE 1.0** is tagged `trace-v1` and the Tab/autofill fix is `trace-v1.0.1`; this build widens the circuit set and adds the podium archive. It ships as the Pages build — there are no downloadable assets, the browser game is the release.
 
 ## Development
 
@@ -141,7 +142,7 @@ games/
   index.html    the shelf
   apex-gp-2026/ GP 2026 page and entry
   deep-atlas/   DEEP ATLAS page, its atlas data and source
-  trace/        TRACE page, source and data/circuits.json
+  trace/        TRACE page, source, data/circuits.json and data/podiums.json
 scripts/        gen-trace-circuits.mjs (rebuilds the TRACE dataset)
 public/        circuits, car model, audio, share images and 404.html (old-link forwarder)
 ```
@@ -155,7 +156,7 @@ There are no accounts, no analytics and no server. Names, settings, streaks, bes
 - Circuit outlines: [bacinger/f1-circuits](https://github.com/bacinger/f1-circuits), MIT, © 2019–2025 Tomislav Bacinger.
 - Car model: [“F1 2026 concept (polygon model)”](https://sketchfab.com/3d-models/f1-2026-concept-polygon-model-ea3bde709b1e4dc9b0ec8557d106ed42) by [Qvist_designs](https://sketchfab.com/Qvist_designs), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), sourced via [BadCodesGG/interactive-f1](https://github.com/BadCodesGG/interactive-f1).
 - Engine loop: OpenGameArt, CC0.
-- TRACE circuit outlines reuse the repository's GPS circuit data, plus hand-traced schematics for ovals, street courses and road courses the GeoJSON does not carry.
+- TRACE circuit outlines reuse the repository's GPS circuit data, plus hand-traced schematics for ovals, street courses and road courses the GeoJSON does not carry. Podium results are derived from Wikipedia's Formula One race classifications (CC BY-SA 4.0).
 - Everything else, including the procedural fallback car, the tyre-screech audio, the DEEP ATLAS place database and the TRACE outlines, was created for these projects.
 
 See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for full attribution.
