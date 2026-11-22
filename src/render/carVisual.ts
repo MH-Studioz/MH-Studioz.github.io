@@ -268,6 +268,21 @@ interface WheelPack {
   parts: WheelPart[];
 }
 
+/** One wheel's cut, measured from the scan rather than assumed from the class. */
+interface WheelDisc {
+  /** Axle centre in car space. */
+  x: number;
+  y: number;
+  z: number;
+  /** Tyre radius, measured from the tyre ring. */
+  radius: number;
+  /** Half the tyre's width, with a little margin. */
+  halfWidth: number;
+  /** Radius the cut uses: the tyre plus a hair, nothing more. */
+  cutRadius: number;
+  front: boolean;
+}
+
 /** Wheel geometry by class: every car of a class shares the same four wheels. */
 const MODEL_WHEELS = new Map<string, WheelPack[]>();
 
@@ -374,6 +389,8 @@ export class CarVisual {
   private drsCurrent = 0;
   private drsMax = Math.PI * (65 / 180);
   private wheelSpin = 0;
+  /** Radius the tyres roll on, averaged over the four wheels (metres). */
+  private spinRadius = 0.36;
   private frontWingNode: THREE.Object3D | null = null;
   private rearWingNode: THREE.Object3D | null = null;
   private helmetVisor: THREE.MeshStandardMaterial | null = null;
@@ -413,6 +430,10 @@ export class CarVisual {
     this.updateLiveryBounds();
     this.setCompound(config.livery.compound);
     this.captureWheelRest();
+    const radii = this.wheels.map((wheel) => wheel.radius).filter((radius) => radius > 0);
+    if (radii.length) {
+      this.spinRadius = radii.reduce((sum, radius) => sum + radius, 0) / radii.length;
+    }
   }
 
   /** Procedural geometry for the classes that have no uploaded scan. */
@@ -679,30 +700,168 @@ export class CarVisual {
     return modelRoleMaterial(`model-${role}`, base);
   }
 
+  /**
+   * Measures each wheel's axle centre, width and tyre radius from the scan. The cut
+   * used to run on a disc guessed from the class spec: slightly low and slightly
+   * too big, so it sliced the top of the arch off with the tyre, and the radius it
+   * reported came from the bounding box of everything it caught — brake ducts
+   * included — which then drove the wheel spin rate and suspension tilt.
+   *
+   * A generous probe collects the vertices around each corner. The tyre is a ring
+   * of geometry at one distance from the provisional centre, so it stands out as
+   * the peak of the distance histogram; the vertices within a narrow band of that
+   * peak give the true centre, width and radius, and nothing else gets a vote.
+   */
+  private measureWheels(holder: THREE.Group, wheelRadius: number): Array<WheelDisc | null> {
+    const size = vertexBounds(holder).getSize(new THREE.Vector3());
+    const probeHalfWidth = Math.min(size.x * 0.06, wheelRadius * 0.5);
+    const probeReach = wheelRadius * 1.35;
+    const probes = [
+      { x: -size.x * 0.355, y: wheelRadius, z: size.z * 0.3, front: true },
+      { x: size.x * 0.355, y: wheelRadius, z: size.z * 0.3, front: true },
+      { x: -size.x * 0.355, y: wheelRadius, z: -size.z * 0.3, front: false },
+      { x: size.x * 0.355, y: wheelRadius, z: -size.z * 0.3, front: false },
+    ];
+    const points: number[][] = probes.map(() => []);
+    const holderInverse = holder.matrixWorld.clone().invert();
+    const local = new THREE.Matrix4();
+    const p = new THREE.Vector3();
+    const meshes: THREE.Mesh[] = [];
+    holder.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.Mesh);
+    });
+
+    for (const mesh of meshes) {
+      if (mesh.userData.noMerge) continue;
+      const position = mesh.geometry.getAttribute('position');
+      if (!position) continue;
+      const box = vertexBounds(mesh);
+      const near = probes
+        .map((probe, i) => ({ probe, i }))
+        .filter(
+          ({ probe }) =>
+            box.min.x <= probe.x + probeHalfWidth && box.max.x >= probe.x - probeHalfWidth &&
+            box.min.y <= probe.y + probeReach && box.max.y >= probe.y - probeReach &&
+            box.min.z <= probe.z + probeReach && box.max.z >= probe.z - probeReach,
+        );
+      if (!near.length) continue;
+      local.multiplyMatrices(holderInverse, mesh.matrixWorld);
+      for (let v = 0; v < position.count; v += 1) {
+        p.fromBufferAttribute(position as THREE.BufferAttribute, v).applyMatrix4(local);
+        for (const { probe, i } of near) {
+          if (Math.abs(p.x - probe.x) > probeHalfWidth) continue;
+          if (Math.hypot(p.y - probe.y, p.z - probe.z) > probeReach) continue;
+          points[i].push(p.x, p.y, p.z);
+        }
+      }
+    }
+
+    const discs: Array<WheelDisc | null> = probes.map(() => null);
+    const found: Array<{
+      index: number;
+      front: boolean;
+      radius: number;
+      x: number;
+      y: number;
+      z: number;
+      halfWidth: number;
+    }> = [];
+    probes.forEach((probe, index) => {
+      const list = points[index];
+      if (list.length < 90) return;
+      const bins = 48;
+      const histogram = new Uint32Array(bins);
+      const distances: number[] = [];
+      for (let i = 0; i < list.length; i += 3) {
+        const d = Math.hypot(list[i + 1] - probe.y, list[i + 2] - probe.z);
+        distances.push(d);
+        histogram[Math.min(bins - 1, Math.floor((d / probeReach) * bins))] += 1;
+      }
+      let peak = 0;
+      for (const count of histogram) peak = Math.max(peak, count);
+      let tyreBin = -1;
+      for (let b = bins - 1; b >= 0; b -= 1) {
+        if (histogram[b] >= peak * 0.4) {
+          tyreBin = b;
+          break;
+        }
+      }
+      if (tyreBin < 0) return;
+      const tyreRadius = ((tyreBin + 0.5) / bins) * probeReach;
+      const band = tyreRadius * 0.08;
+      let minX = Infinity;
+      let maxX = -Infinity;
+      let minY = Infinity;
+      let maxY = -Infinity;
+      let minZ = Infinity;
+      let maxZ = -Infinity;
+      let bandCount = 0;
+      for (let i = 0, k = 0; i < list.length; i += 3, k += 1) {
+        if (Math.abs(distances[k] - tyreRadius) > band) continue;
+        minX = Math.min(minX, list[i]);
+        maxX = Math.max(maxX, list[i]);
+        minY = Math.min(minY, list[i + 1]);
+        maxY = Math.max(maxY, list[i + 1]);
+        minZ = Math.min(minZ, list[i + 2]);
+        maxZ = Math.max(maxZ, list[i + 2]);
+        bandCount += 1;
+      }
+      if (bandCount < 24) return;
+      // Both axis pairs across the ring span one diameter, so their average is the
+      // tyre's radius; its x spread is the wheel's width. The band's own extents are
+      // steadier than the histogram bin, which can settle on the arch.
+      found.push({
+        index,
+        front: probe.front,
+        radius: (maxY - minY + (maxZ - minZ)) / 4,
+        x: (minX + maxX) / 2,
+        y: (minY + maxY) / 2,
+        z: (minZ + maxZ) / 2,
+        halfWidth: Math.min(
+          Math.max((maxX - minX) * 0.5 * 1.08, wheelRadius * 0.16),
+          wheelRadius * 1.2,
+        ),
+      });
+    });
+
+    if (!found.length) return discs;
+    // All four wheels are the same size, and a single ring can land on a rim rather
+    // than the tyre — the Huracán's right front did. Cutting to that smaller figure
+    // leaves the tyre in the bodywork, standing still while the rim spins inside it,
+    // so the car's tyre is the median of the four. The class spec only bounds it
+    // loosely: it is a guess, and a 5.5 m Huracán scan really does sit on 0.41 m
+    // tyres (the same ratio to its length as the real car).
+    // The largest of the four rings: a wheel whose ring landed on its rim reads
+    // small, and a small cut leaves that tyre standing still in the bodywork. The
+    // piece test above is what keeps an over-generous radius from taking bodywork,
+    // so erring large here is the safe direction.
+    const radius = THREE.MathUtils.clamp(
+      Math.max(...found.map((wheel) => wheel.radius)),
+      wheelRadius * 0.6,
+      wheelRadius * 1.4,
+    );
+    for (const wheel of found) {
+      discs[wheel.index] = {
+        x: wheel.x,
+        y: wheel.y,
+        z: wheel.z,
+        radius,
+        halfWidth: wheel.halfWidth,
+        cutRadius: radius * 1.02,
+        front: wheel.front,
+      };
+    }
+    return discs;
+  }
+
   private extractWheels(holder: THREE.Group, wheelRadius: number): WheelPack[] {
     holder.updateMatrixWorld(true);
-    const bounds = vertexBounds(holder);
-    const size = bounds.getSize(new THREE.Vector3());
-    // A wheel is a disc around the axle, so test against a cylinder, not a box:
-    // a box tall enough to hold the tyre also swallows the arch above it, which
-    // came back as holes in the bodywork once the wheel spun away.
-    const halfX = Math.max(0.28, size.x * 0.14);
-    const radius = wheelRadius;
-    const corners = [
-      { x: -size.x * 0.4, y: radius, z: size.z * 0.3, front: true },
-      { x: size.x * 0.4, y: radius, z: size.z * 0.3, front: true },
-      { x: -size.x * 0.4, y: radius, z: -size.z * 0.3, front: false },
-      { x: size.x * 0.4, y: radius, z: -size.z * 0.3, front: false },
-    ];
-    const rimRadius = radius * 1.06;
-    const inWheel = (x: number, y: number, z: number): number => {
-      for (let i = 0; i < corners.length; i += 1) {
-        const corner = corners[i];
-        if (Math.abs(x - corner.x) > halfX) continue;
-        if (Math.hypot(y - corner.y, z - corner.z) <= rimRadius) return i;
-      }
-      return -1;
-    };
+    // A wheel is a disc around its axle, so the cut is a cylinder — and it is cut
+    // where the tyre actually ends, not where the class spec guesses. A box, or a
+    // disc even slightly too large, takes the arch above the tyre with it and
+    // leaves a notch in the fender once the wheel spins away.
+    const discs = this.measureWheels(holder, wheelRadius);
+    if (!discs.some((disc) => disc !== null)) return [];
 
     const holderInverse = holder.matrixWorld.clone().invert();
     const meshes: THREE.Mesh[] = [];
@@ -715,12 +874,10 @@ export class CarVisual {
       positions: number[];
       normals: number[];
     }
-    const wheelSinks: Array<Map<ModelRole, Sink>> = corners.map(() => new Map());
+    const wheelSinks: Array<Map<ModelRole, Sink>> = discs.map(() => new Map());
     const local = new THREE.Matrix4();
     const normalMatrix = new THREE.Matrix3();
     const a = new THREE.Vector3();
-    const b = new THREE.Vector3();
-    const c = new THREE.Vector3();
     const n = new THREE.Vector3();
     let anyWheel = false;
 
@@ -739,16 +896,7 @@ export class CarVisual {
       const role = modelRoleForNode(ancestorName(mesh));
 
       const meshBox = vertexBounds(mesh);
-      const confined = corners
-        .map((corner, i) => ({ corner, i }))
-        .filter(({ corner }) =>
-          meshBox.min.x >= corner.x - halfX && meshBox.max.x <= corner.x + halfX &&
-          meshBox.min.y >= corner.y - rimRadius && meshBox.max.y <= corner.y + rimRadius &&
-          meshBox.min.z >= corner.z - rimRadius && meshBox.max.z <= corner.z + rimRadius,
-        )
-        .map(({ i }) => i);
-
-      if (!confined.length && !this.meshTouchesWheel(meshBox, corners, halfX, rimRadius)) continue;
+      if (!this.meshTouchesWheel(meshBox, discs)) continue;
 
       const sinkFor = (wheel: number): Sink => {
         const map = wheelSinks[wheel];
@@ -759,45 +907,90 @@ export class CarVisual {
         }
         return sink;
       };
-      // Fast path: the mesh belongs to exactly one wheel.
-      if (confined.length === 1) {
-        const wheel = confined[0];
-        const sink = sinkFor(wheel);
-        for (let v = 0; v < vertexCount; v += 1) {
-          const at = index ? index.getX(v) : v;
-          a.fromBufferAttribute(position as THREE.BufferAttribute, at).applyMatrix4(local);
-          sink.positions.push(a.x, a.y, a.z);
-          if (normal) {
-            n.fromBufferAttribute(normal as THREE.BufferAttribute, at).applyMatrix3(normalMatrix).normalize();
-            sink.normals.push(n.x, n.y, n.z);
-          }
-        }
-        mesh.parent?.remove(mesh);
-        anyWheel = true;
-        continue;
+
+      // Classify every vertex exactly once. The old fast path only checked the
+      // mesh's bounding box, so a big wheel mesh also carried the box corners that
+      // sit outside the tyre into the spin group, which is what made the measured
+      // radius read larger than the cut.
+      const placed = new Float32Array(vertexCount * 3);
+      for (let v = 0; v < vertexCount; v += 1) {
+        const at = index ? index.getX(v) : v;
+        a.fromBufferAttribute(position as THREE.BufferAttribute, at).applyMatrix4(local);
+        placed[v * 3] = a.x;
+        placed[v * 3 + 1] = a.y;
+        placed[v * 3 + 2] = a.z;
       }
 
-      // Slow path: split the triangles between the wheels and the body.
+      // Classify each vertex against the four tyres; a triangle is wheel geometry
+      // only when all three of its corners sit in the same one. These scans fuse the
+      // tyre into the body shell, so there is no separate wheel piece to lift out.
+      const owners = new Int8Array(vertexCount).fill(-1);
+      let inside = 0;
+      for (let v = 0; v < vertexCount; v += 1) {
+        const x = placed[v * 3];
+        const y = placed[v * 3 + 1];
+        const z = placed[v * 3 + 2];
+        for (let d = 0; d < discs.length; d += 1) {
+          const disc = discs[d];
+          if (!disc) continue;
+          if (Math.abs(x - disc.x) > disc.halfWidth) continue;
+          if (Math.hypot(y - disc.y, z - disc.z) > disc.cutRadius) continue;
+          owners[v] = d;
+          inside += 1;
+          break;
+        }
+      }
+      if (!inside) continue;
+
+      const pushVertex = (sink: Sink, v: number): void => {
+        sink.positions.push(placed[v * 3], placed[v * 3 + 1], placed[v * 3 + 2]);
+        if (!normal) return;
+        const at = index ? index.getX(v) : v;
+        n.fromBufferAttribute(normal as THREE.BufferAttribute, at).applyMatrix3(normalMatrix).normalize();
+        sink.normals.push(n.x, n.y, n.z);
+      };
+
+      // Split the triangles between the wheels and the body.
       const bodyPositions: number[] = [];
       const bodyNormals: number[] = [];
       let moved = false;
       for (let t = 0; t < vertexCount; t += 3) {
-        const ia = index ? index.getX(t) : t;
-        const ib = index ? index.getX(t + 1) : t + 1;
-        const ic = index ? index.getX(t + 2) : t + 2;
-        a.fromBufferAttribute(position as THREE.BufferAttribute, ia).applyMatrix4(local);
-        b.fromBufferAttribute(position as THREE.BufferAttribute, ib).applyMatrix4(local);
-        c.fromBufferAttribute(position as THREE.BufferAttribute, ic).applyMatrix4(local);
-        const wheel = inWheel((a.x + b.x + c.x) / 3, (a.y + b.y + c.y) / 3, (a.z + b.z + c.z) / 3);
-        const targetPositions = wheel >= 0 ? sinkFor(wheel).positions : bodyPositions;
-        const targetNormals = wheel >= 0 ? sinkFor(wheel).normals : bodyNormals;
-        if (wheel >= 0) moved = true;
-        for (const [position3, at] of [[a, ia], [b, ib], [c, ic]] as Array<[THREE.Vector3, number]>) {
-          targetPositions.push(position3.x, position3.y, position3.z);
-          if (normal) {
-            n.fromBufferAttribute(normal as THREE.BufferAttribute, at).applyMatrix3(normalMatrix).normalize();
-            targetNormals.push(n.x, n.y, n.z);
+        const own = owners[t];
+        let wheel = own >= 0 && own === owners[t + 1] && own === owners[t + 2] ? own : -1;
+        // Surfaces facing the axle are arch liners and inner panels. Lifting those
+        // out beside the tyre is exactly the dark notch in the Huracán's fender, and
+        // they are hidden behind the wheel anyway, so they stay with the body.
+        if (wheel >= 0) {
+          const disc = discs[wheel];
+          if (disc) {
+            const ax = placed[t * 3 + 3] - placed[t * 3];
+            const ay = placed[t * 3 + 4] - placed[t * 3 + 1];
+            const az = placed[t * 3 + 5] - placed[t * 3 + 2];
+            const bx = placed[t * 3 + 6] - placed[t * 3];
+            const by = placed[t * 3 + 7] - placed[t * 3 + 1];
+            const bz = placed[t * 3 + 8] - placed[t * 3 + 2];
+            const nx = ay * bz - az * by;
+            const ny = az * bx - ax * bz;
+            const nz = ax * by - ay * bx;
+            const cy = (placed[t * 3 + 1] + placed[t * 3 + 4] + placed[t * 3 + 7]) / 3 - disc.y;
+            const cz = (placed[t * 3 + 2] + placed[t * 3 + 5] + placed[t * 3 + 8]) / 3 - disc.z;
+            const length = Math.hypot(ny, nz) * Math.hypot(cy, cz);
+            if (length > 1e-9 && (ny * cy + nz * cz) / length < -0.3) wheel = -1;
           }
+        }
+        const target = wheel >= 0 ? sinkFor(wheel) : null;
+        if (target) moved = true;
+        for (let k = 0; k < 3; k += 1) {
+          const v = t + k;
+          if (target) {
+            pushVertex(target, v);
+            continue;
+          }
+          bodyPositions.push(placed[v * 3], placed[v * 3 + 1], placed[v * 3 + 2]);
+          if (!normal) continue;
+          const at = index ? index.getX(v) : v;
+          n.fromBufferAttribute(normal as THREE.BufferAttribute, at).applyMatrix3(normalMatrix).normalize();
+          bodyNormals.push(n.x, n.y, n.z);
         }
       }
       if (!moved) continue;
@@ -825,19 +1018,16 @@ export class CarVisual {
     if (cached) return cached;
 
     const packs: WheelPack[] = [];
-    const point = new THREE.Vector3();
     wheelSinks.forEach((sinks, wheel) => {
-      const box = new THREE.Box3();
-      for (const sink of sinks.values()) {
-        for (let i = 0; i < sink.positions.length; i += 3) {
-          point.set(sink.positions[i], sink.positions[i + 1], sink.positions[i + 2]);
-          box.expandByPoint(point);
-        }
-      }
-      if (box.isEmpty()) return;
-      const center = box.getCenter(new THREE.Vector3());
-      const wheelSize = box.getSize(new THREE.Vector3());
-      const radius = Math.max(wheelSize.y, wheelSize.z) / 2 || wheelRadius;
+      const disc = discs[wheel];
+      if (!disc || !sinks.size) return;
+      // The measured tyre radius, not the bbox of everything the cut caught: brake
+      // ducts, calipers and suspension arms sit inside the wheel and inflated it,
+      // and this radius drives the spin rate and the suspension tilt.
+      const center = new THREE.Vector3(disc.x, disc.y, disc.z);
+      // The measured tyre, shared by all four wheels: the radius the tyres roll on,
+      // so it must be the rubber, not brake ducts or arch lip caught by the cut.
+      const radius = disc.radius;
       const parts: WheelPart[] = [];
       for (const sink of sinks.values()) {
         const positions = new Float32Array(sink.positions.length);
@@ -855,24 +1045,20 @@ export class CarVisual {
         }
         parts.push({ geometry, role: sink.role });
       }
-      packs.push({ center, radius, front: corners[wheel].front, parts });
+      packs.push({ center, radius, front: disc.front, parts });
     });
     MODEL_WHEELS.set(this.config.carClass, packs);
     return packs;
   }
 
   /** Cheap rejection test: can this mesh possibly contain wheel triangles? */
-  private meshTouchesWheel(
-    box: THREE.Box3,
-    corners: Array<{ x: number; y: number; z: number }>,
-    halfX: number,
-    radius: number,
-  ): boolean {
-    return corners.some(
-      (corner) =>
-        box.min.x <= corner.x + halfX && box.max.x >= corner.x - halfX &&
-        box.min.y <= corner.y + radius && box.max.y >= corner.y - radius &&
-        box.min.z <= corner.z + radius && box.max.z >= corner.z - radius,
+  private meshTouchesWheel(box: THREE.Box3, discs: Array<WheelDisc | null>): boolean {
+    return discs.some(
+      (disc) =>
+        disc !== null &&
+        box.min.x <= disc.x + disc.halfWidth && box.max.x >= disc.x - disc.halfWidth &&
+        box.min.y <= disc.y + disc.cutRadius && box.max.y >= disc.y - disc.cutRadius &&
+        box.min.z <= disc.z + disc.cutRadius && box.max.z >= disc.z - disc.cutRadius,
     );
   }
 
@@ -2169,7 +2355,9 @@ export class CarVisual {
 
   update(dt: number, state: CarVisualState): void {
     const speed = state.speed;
-    this.wheelSpin += (speed * dt) / 0.36;
+    // Roll at the rate the car's own tyres would: a kart's 0.15 m wheels turned
+    // as if they were 0.36 m ones, and the scanned cars keep their measured radii.
+    this.wheelSpin += (speed * dt) / this.spinRadius;
     const sinPitch = Math.sin(state.pitch ?? 0);
     const sinRoll = Math.sin(state.roll ?? 0);
     for (const w of this.wheels) {
