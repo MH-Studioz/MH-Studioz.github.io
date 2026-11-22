@@ -743,6 +743,27 @@
   letter-spacing: 0.08em;
 }
 
+.gp-slider {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  width: 124px;
+}
+
+.gp-slider-value {
+  color: var(--blue);
+  font-family: var(--font);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+}
+
+.gp-slider input[type="range"] {
+  width: 100%;
+  margin: 4px 0 0;
+}
+
 .gp-seg {
   display: flex;
   border: 1px solid var(--line);
@@ -1587,5 +1608,188 @@
 
   .mp-lobby-meta {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ========================= SMALL SCREENS ========================= */
+/* Single-column fallbacks for tablets, then phones. */
+
+@media (max-width: 900px) {
+  /* Garage: the fixed 430px control column overflowed every tablet. */
+  #screen-garage {
+    overflow-y: auto;
+  }
+  .garage-layout {
+    grid-template-columns: minmax(0, 1fr);
+    flex: none;
+    min-height: 0;
+  }
+  .garage-stage {
+    order: -1;
+    min-height: 42vh;
+  }
+  .garage-controls {
+    border-right: 0;
+    border-top: 1px solid var(--line);
+  }
+  .garage-top {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px 18px;
+  }
+  .garage-title h1 {
+    font-size: clamp(20px, 5vw, 30px);
+  }
+
+  .results-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .results-table-wrap {
+    overflow-x: auto;
+  }
+
+  .gp-slider {
+    width: 100%;
+    align-items: stretch;
+  }
+  .gp-slider-value {
+    text-align: right;
+  }
+
+  /* One-tap start: the summary would otherwise sit hundreds of pixels below
+     the settings it summarises. */
+  .race-summary {
+    position: sticky;
+    top: auto;
+    bottom: 0;
+    margin: 0 -18px;
+    padding: 12px 18px 14px;
+    border-left: 0;
+    border-right: 0;
+    box-shadow: 0 -16px 32px rgba(0, 0, 0, 0.6);
+    z-index: 6;
+  }
+  .race-summary > .eyebrow,
+  .race-summary h2,
+  .race-summary-rows,
+  .race-summary-laps,
+  .race-summary-note {
+    display: none;
+  }
+  .race-lap-setting {
+    margin-bottom: 10px;
+  }
+  .race-start {
+    min-height: 46px;
+  }
+}
+
+@media (max-width: 760px) {
+  /* The home screen has to scroll: with overflow hidden the car showcase was
+     squashed to two pixels and its studio button was unreachable. */
+  #screen-menu.home-screen {
+    overflow-y: auto;
+    padding-bottom: 18px;
+  }
+  #screen-menu.home-screen .home-layout {
+    flex: none;
+    gap: 20px;
+    padding: 16px 0 8px;
+  }
+  .home-showcase {
+    max-height: none;
+  }
+  .home-car-stage {
+    min-height: 205px;
+  }
+  .home-intro > h1 {
+    font-size: clamp(31px, 10.5vw, 44px);
+  }
+  .home-lead {
+    margin-bottom: 16px;
+  }
+  .home-mode-card {
+    min-height: 96px;
+  }
+  .menu-footer {
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    padding: 10px 0 16px;
+  }
+  .menu-footer .footer-right {
+    width: 100%;
+  }
+  .race-summary {
+    margin: 0 -17px;
+    padding: 12px 17px 14px;
+  }
+
+  .modal-panel {
+    width: 100%;
+  }
+  .tracks-panel {
+    max-height: 92vh;
+  }
+  .modal-header {
+    padding: 14px 16px 10px;
+  }
+  /* Stacked: side by side, the last filter was clipped off the panel. */
+  .track-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+  #track-search {
+    width: 100%;
+  }
+  .track-filter {
+    overflow-x: auto;
+  }
+  .track-filter button {
+    flex: 1;
+    min-height: 36px;
+  }
+  .track-grid {
+    grid-template-columns: 1fr;
+    padding: 12px;
+  }
+
+  #screen-results {
+    padding: 20px 16px;
+  }
+  .results-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .results-head h1 {
+    font-size: clamp(26px, 8vw, 40px);
+  }
+  .results-actions {
+    flex-wrap: wrap;
+  }
+
+  .tt-side,
+  .mp-actions .mp-card {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 430px) {
+  .gp-class-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .gp-car-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .race-summary h2 {
+    font-size: 20px;
+  }
+  .home-header-right {
+    gap: 8px;
+  }
+  .sub-title h1 {
+    font-size: clamp(24px, 8vw, 34px);
   }
 }

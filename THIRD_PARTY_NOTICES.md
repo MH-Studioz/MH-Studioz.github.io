@@ -8,6 +8,27 @@
 
 The dataset is included as `public/assets/tracks/circuits.geojson`. Circuit names and layouts are factual references; they are not official data and are not endorsed by any circuit operator or racing series.
 
+## Circuit geometry from OpenStreetMap
+
+- **Source:** https://www.openstreetmap.org/ — `highway=raceway` ways, queried through the Overpass API by `.tools/osm-import.mjs` and assembled into closed lap rings
+- **License:** Open Database License (ODbL) 1.0 — https://opendatacommons.org/licenses/odbl/1-0/
+- **Copyright:** © OpenStreetMap contributors — https://www.openstreetmap.org/copyright
+
+Included as `public/assets/tracks/osm-circuits.json`. The derived database is made available under the same ODbL terms. This file supplies the detailed centre lines the game drives on; the MIT-licensed GeoJSON above still supplies names, locations and official lap lengths.
+
+## AI driver
+
+- **Speed Dreams — Simplix robot** — https://www.speed-dreams.net/ — GPL-2.0, © 2007–2014 Wolf-Dieter Beelitz, derived from Tim Foden's `mouse_2006`.
+- **TORCS** — https://torcs.sourceforge.net/ — GPL-2.0.
+
+`src/ai/aiDriver.ts` reimplements three parts of Simplix in TypeScript: the PID controller (`TPidController`), the speed controller (`TDriver::BrakingForceController`: a PID on the cube of the speed error) and the steering law (`TDriver::SteerAngle`: speed-scaled lookahead, yaw-rate feedback, curvature feed-forward and a P/D controller on the offset from the line), plus the ramped avoidance of `TDriver::Runaround`. No C++ source is copied; the algorithms are reimplemented against this game's car and track data, with gains rescaled to the units used here.
+
+## Vehicle physics
+
+- **Bullet Physics** — https://github.com/bulletphysics/bullet3 — zlib licence. The raycast-vehicle suspension and friction model (`btRaycastVehicle`, `btWheelInfo`) is the basis of `src/physics/raycastVehicle.ts`.
+- **cannon-es** — https://github.com/pmndrs/cannon-es — MIT licence. TypeScript port of the Bullet vehicle used as the reference for the port above.
+- **TORCS / Speed Dreams** — https://www.speed-dreams.net/ — GPL-2.0. The per-wheel slip model in `src/physics/vehicle.ts` follows the approach of the `simuv2` tyre model (separate slip ratio and slip angle, combined into one friction demand), and the track representation in `src/tracks/arcChain.ts` follows the segment (straight / constant-radius arc) model those simulators use for circuits. No source code from either project is copied; the algorithms are reimplemented in TypeScript.
+
 ## Car model
 
 - **Title:** F1 2026 concept (polygon model)

@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#05070b" />
     <meta
       http-equiv="Content-Security-Policy"
@@ -267,6 +267,11 @@
           </div>
           <button id="hud-audio" class="hud-icon-btn" title="Mute audio" type="button">♪</button>
           <button id="hud-menu" class="hud-icon-btn" title="Pause" type="button">II</button>
+          <div class="touch-tools" id="touch-tools">
+            <button class="hud-icon-btn touch-tool" data-touch-key="KeyC" type="button" aria-label="Change camera">C</button>
+            <button class="hud-icon-btn touch-tool" data-touch-key="KeyM" type="button" aria-label="Car data">M</button>
+            <button class="hud-icon-btn touch-tool" data-touch-key="KeyR" type="button" aria-label="Recover to track">R</button>
+          </div>
         </div>
 
         <div id="timing-tower" class="timing-tower"></div>
@@ -337,6 +342,12 @@
             <div id="limiter-badge" class="badge warn hidden">PIT LIMITER</div>
             <div id="drs-note" class="drs-note">ZONE</div>
           </div>
+        </div>
+        <div id="touch-controls" class="touch-controls">
+          <button class="touch-btn steer-left" data-touch-key="KeyA" type="button" aria-label="Steer left">◀</button>
+          <button class="touch-btn steer-right" data-touch-key="KeyD" type="button" aria-label="Steer right">▶</button>
+          <button class="touch-btn brake" data-touch-key="KeyS" type="button" aria-label="Brake">BRAKE</button>
+          <button class="touch-btn throttle" data-touch-key="KeyW" type="button" aria-label="Throttle">GAS</button>
         </div>
         <div class="hud-help">M MFD · C CAMERA · ESC PAUSE</div>
       </div>

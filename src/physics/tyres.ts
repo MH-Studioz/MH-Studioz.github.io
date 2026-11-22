@@ -120,15 +120,12 @@ export function createTyreSet(compound: CompoundId, ambient = 28): TyreState[] {
   ];
 }
 
-/** Simplified Pacejka Magic Formula, peak force points opposite the slip. */
-export function pacejka(slipAngle: number, mu: number, normalLoad: number): number {
-  const B = 10.2;
-  const C = 1.42;
-  const E = 0.94;
-  const D = mu * normalLoad;
-  const x = B * slipAngle;
-  const peak = Math.sin(C * Math.atan(x - E * (x - Math.atan(x))));
-  return D * peak;
+/**
+ * Tyre load sensitivity: peak friction falls as vertical load rises, so the
+ * heavily loaded outside tyre gains less grip than its extra weight demands.
+ */
+export function loadSensitivity(load: number): number {
+  return Math.max(0.82, Math.min(1.06, 1.06 - Math.max(0, load) / 90000));
 }
 
 export function updateTyreGrip(tyre: TyreState): void {
@@ -136,9 +133,10 @@ export function updateTyreGrip(tyre: TyreState): void {
   const t = tyre.coreTemp;
   let tempGrip: number;
   if (t < opt) {
-    // Cold tyres are still a little greasy, but not so edgy that the first
-    // keyboard input after the start instantly rotates the car.
-    tempGrip = 0.64 + 0.36 * Math.max(0, Math.min(1, (t - 18) / (opt - 18)));
+    // Cold tyres are a little greasy, not 30% off. The old curve started at
+    // 0.64, so every race began on what felt like wet rubber and the car
+    // needed a minute of lapping before it would turn in.
+    tempGrip = 0.80 + 0.2 * Math.max(0, Math.min(1, (t - 18) / (opt - 18)));
   } else {
     const over = (t - opt) / tyre.compound.window;
     tempGrip = 1 - Math.min(0.34, over * 0.18);
@@ -173,12 +171,17 @@ export function updateTyre(tyre: TyreState, input: TyreUpdateInput): void {
   const speed = Math.abs(input.speed);
   const loadFactor = Math.max(0, input.load) / 4200;
   const slide = Math.abs(input.slipAngle) * speed; // m/s of scrub
-  const heatFromSlide = Math.min(3.2, slide * 0.032 * loadFactor);
-  const heatFromBrake = input.braking * 0.55;
-  const heatFromEngine = input.slipRatio * 0.25;
+  // Heat sources in °C/s. The rolling term matters as much as sliding: a tyre
+  // is worked by carrying load at speed, not only when it is scrubbing. The
+  // old model heated far slower than it cooled, so tyres stayed stone cold
+  // all race and the car permanently lost a third of its grip.
+  const heatFromSlide = Math.min(4.5, slide * 0.16 * loadFactor);
+  const heatFromSpeed = 0.03 * speed * (0.5 + loadFactor);
+  const heatFromBrake = input.braking * 1.5;
+  const heatFromEngine = input.slipRatio * 0.7;
   const wetness = Math.max(0, Math.min(1, input.wetness ?? 0));
-  const cooling = (tyre.surfaceTemp - input.ambient) * (0.055 + 0.0017 * speed + wetness * 0.045);
-  tyre.surfaceTemp += (heatFromSlide + heatFromBrake + heatFromEngine - cooling) * input.dt * 1.9;
+  const cooling = (tyre.surfaceTemp - input.ambient) * (0.008 + 0.0006 * speed + wetness * 0.02);
+  tyre.surfaceTemp += (heatFromSlide + heatFromSpeed + heatFromBrake + heatFromEngine - cooling) * input.dt;
   tyre.surfaceTemp = Math.max(input.ambient, Math.min(230, tyre.surfaceTemp));
   const coreTarget = tyre.surfaceTemp * 0.86 + 12;
   tyre.coreTemp += (coreTarget - tyre.coreTemp) * input.dt * (0.32 + speed * 0.0022);
@@ -205,12 +208,6 @@ export function tyreGrip(tyre: TyreState, wetness = 0): number {
   const water = Math.max(0, Math.min(1, wetness));
   const wetRetention = 1 - water * (1 - tyre.compound.wetGrip);
   return tyre.compound.mu * tyre.tempGrip * Math.max(0.3, tyre.lifeGrip) * wetRetention;
-}
-
-export function averageGrip(tyres: TyreState[], from: number, to: number, wetness = 0): number {
-  let sum = 0;
-  for (let i = from; i <= to; i++) sum += tyreGrip(tyres[i], wetness);
-  return sum / (to - from + 1);
 }
 
 export function reMount(tyres: TyreState[], compound: CompoundId, ambient: number): void {

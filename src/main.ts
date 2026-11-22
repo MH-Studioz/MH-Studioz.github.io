@@ -13,6 +13,7 @@ import { TimeTrialUI } from './ui/timeTrial';
 import { MultiplayerUI } from './ui/multiplayer';
 import { AccountUI } from './ui/account';
 import { TrackLibrary } from './ui/trackLibrary';
+import { bindTouchControls } from './ui/touchControls';
 import { GarageUI } from './ui/garage';
 import { RaceSession } from './game/raceSession';
 import { currentAccount, type DriverAccount } from './account/account';
@@ -21,7 +22,11 @@ import type { PartyRaceConfig } from './net/party';
 
 declare global {
   interface Window {
-    __apex?: { getSession: () => RaceSession | null };
+    __apex?: {
+      getSession: () => RaceSession | null;
+      /** Dev-only shortcut used for visual checks and screenshots. */
+      startRace: (overrides?: Partial<RaceSelection>) => Promise<void>;
+    };
   }
 }
 
@@ -89,7 +94,28 @@ async function bootApp(): Promise<void> {
   let partyRaceActive = false;
 
   if (import.meta.env.DEV) {
-    window.__apex = { getSession: () => session };
+    window.__apex = {
+      getSession: () => session,
+      startRace: (overrides) =>
+        startRace({
+          mode: 'quick',
+          featureId: library.selected.id,
+          laps: 3,
+          settings: {
+            weather: 'dry',
+            timeOfDay: 'day',
+            aiCount: 9,
+            aiDifficulty: 'pro',
+            aiAggression: 'normal',
+            aiMistakes: true,
+            trackLimits: 'strict',
+            flags: true,
+            practiceMinutes: 10,
+            qualifyingMinutes: 10,
+          },
+          ...overrides,
+        }),
+    };
   }
 
   const screens: Record<Exclude<ScreenId, null>, HTMLElement | null> = {
@@ -221,6 +247,9 @@ async function bootApp(): Promise<void> {
     try {
       const track = buildTrack(feature);
       track.night = settings.timeOfDay === 'night';
+      // A gravel stage is always a solo run against the clock, whatever entry
+      // point (setup screen, party, deep link) asked for it.
+      const stage = track.surface === 'gravel';
       progress(76, 'PREPARING GRID · 120 HZ PHYSICS…');
       await new Promise((resolve) => setTimeout(resolve, 40));
       setScreen(null);
@@ -231,11 +260,15 @@ async function bootApp(): Promise<void> {
         track,
         playerConfig,
         difficulty: difficultyForRace(settings),
-        mode: selection.mode,
-        laps: selection.laps,
-        aiCount: settings.aiCount,
+        mode: stage ? 'timetrial' : selection.mode,
+        laps: stage ? 1 : selection.laps,
+        aiCount: stage ? 0 : settings.aiCount,
+        aiAggression: settings.aiAggression,
+        aiMistakes: settings.aiMistakes,
         weather: settings.weather,
         flags: settings.flags,
+        practiceMinutes: settings.practiceMinutes,
+        qualifyingMinutes: settings.qualifyingMinutes,
         template,
         onExit: endRace,
         onCarFrame: selection.mode === 'party' ? (frame) => multiplayer.sendCarFrame(frame) : undefined,
@@ -286,6 +319,7 @@ async function bootApp(): Promise<void> {
   multiplayer.setAccount(account);
   garage = new GarageUI(garageControls, garageSpec, garagePreview, exitGarage);
   home.refresh(loadCarConfig());
+  bindTouchControls();
   setScreen('home');
   homePreview.start();
   progress(100, 'READY');

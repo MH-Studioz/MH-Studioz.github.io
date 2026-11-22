@@ -2,10 +2,12 @@ import type { CarConfig } from '../garage/carConfig';
 import { TEAM_PRESETS, teamConfig } from '../garage/carConfig';
 import { AIDriver } from '../ai/aiDriver';
 import { EngineAudio } from '../audio/engineAudio';
+import { carContact } from '../physics/collisionBox';
 import { COMPOUNDS, reMount, type CompoundId } from '../physics/tyres';
 import { RaceCar } from '../physics/vehicle';
 import type { DriverInput } from '../physics/vehicle';
 import { clamp, type DifficultySettings } from '../physics/settings';
+import { AI_AGGRESSION_SCALE, type AiAggression } from '../app/raceOptions';
 import type { PartyCarFrame } from '../net/party';
 import { RaceRenderer } from '../render/raceRenderer';
 import type { TrackData } from '../tracks/types';
@@ -26,7 +28,13 @@ export interface RaceSessionOptions {
   mode: RaceMode;
   laps: number;
   aiCount?: number;
+  aiAggression?: AiAggression;
+  aiMistakes?: boolean;
   weather?: 'dry' | 'wet';
+  /** Weekend only: free-practice length, minutes (0 skips practice). */
+  practiceMinutes?: number;
+  /** Weekend only: timed qualifying length, minutes. */
+  qualifyingMinutes?: number;
   flags?: boolean;
   template: import('three').Group | null;
   onExit: () => void;
@@ -62,7 +70,13 @@ interface Racer {
   gridSlot: number;
 }
 
-type Phase = 'qualifying' | 'qualifying_complete' | 'countdown' | 'running' | 'finished';
+type Phase =
+  | 'practice'
+  | 'qualifying'
+  | 'qualifying_complete'
+  | 'countdown'
+  | 'running'
+  | 'finished';
 
 function escapeHtml(text: string): string {
   return text.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] ?? c);
@@ -98,6 +112,10 @@ export class RaceSession {
   private qualifyingTime = 180;
   private qualifyingBest = 0;
   private qualifyingLaps = 0;
+  /** Session lengths from race setup, seconds. */
+  private qualifyingLimit = 180;
+  private qualifyingLapsLimit = 3;
+  private practiceTime = 0;
   private qualifyingTimes = new Map<Racer, number>();
   private lastDelta = 0;
   private deltaIsBest = false;
@@ -109,7 +127,7 @@ export class RaceSession {
   constructor(opts: RaceSessionOptions) {
     this.opts = opts;
     if (opts.weather === 'wet') opts.playerConfig.livery.compound = 'wet';
-    const aiCount = opts.mode === 'timetrial' ? 0 : clamp(Math.round(opts.aiCount ?? 9), 0, 9);
+    const aiCount = opts.mode === 'timetrial' ? 0 : clamp(Math.round(opts.aiCount ?? 9), 0, 20);
     const aiConfigs = TEAM_PRESETS.slice(0, aiCount).map((team) => teamConfig(team, opts.playerConfig.carClass));
     if (opts.weather === 'wet') {
       for (const config of aiConfigs) config.livery.compound = 'wet';
@@ -206,13 +224,17 @@ export class RaceSession {
     if (opts.mode !== 'timetrial') {
       const aiAssists = { brakingAssist: 'off' as const, abs: true, tractionControl: 'full' as const, racingLine: 'off' as const, gearbox: 'auto' as const };
       const aiSim = { ...opts.difficulty.sim, damage: 'off' as const };
-      const aiCount = clamp(Math.round(opts.aiCount ?? 9), 0, 9);
+      const aiCount = clamp(Math.round(opts.aiCount ?? 9), 0, 20);
       TEAM_PRESETS.slice(0, aiCount).forEach((team, i) => {
         const config = teamConfig(team, opts.playerConfig.carClass);
         if (opts.weather === 'wet') config.livery.compound = 'wet';
-        const pace = clamp(opts.difficulty.aiPace + [1.5, -1, 2.5, 0, -2, 3, -1.5, 1, -0.5][i], 50, 110);
+        const spread = [1.5, -1, 2.5, 0, -2, 3, -1.5, 1, -0.5, 2, -2.5, 0.5, 1.2, -1.2, 2.2, -0.2, 0.8, -1.8, 1.8, -0.8];
+        const pace = clamp(opts.difficulty.aiPace + spread[i % spread.length], 50, 110);
         const car = new RaceCar(opts.track, config, aiAssists, aiSim, wetness);
-        const ai = new AIDriver(car, team.tag, team.name, pace);
+        const ai = new AIDriver(car, team.tag, team.name, pace, {
+          aggression: AI_AGGRESSION_SCALE[opts.aiAggression ?? 'normal'],
+          mistakes: opts.aiMistakes !== false,
+        });
         this.racers.push({
           car,
           ai,
@@ -321,22 +343,14 @@ export class RaceSession {
     this.greenTimer = -1;
     this.resultsBuilt = false;
     if (mode === 'weekend') {
-      this.phase = 'qualifying';
-      this.clock = 0;
-      this.qualifyingTime = 180;
-      this.qualifyingLaps = 0;
-      this.qualifyingBest = 0;
-      this.playerRacer.car.resetSession(this.opts.playerConfig.livery.compound);
-      this.playerRacer.car.placeAt(0.003, 0, 0);
-      this.resetPlayerLapState();
-      this.playerRacer.hasCrossedStart = true;
-      this.playerRacer.lapStart = 0;
-      this.racers.forEach((r, i) => {
-        if (i === this.playerIndex) return;
-        this.renderer.setCarVisible(i, false);
-        r.car.placeOnGrid(r.gridSlot);
-      });
-      this.hud.showMessage('QUALIFYING · 3 FLYING LAPS', 'flag-yellow', 3200);
+      // Both sessions are set from race setup. The lap cap is one flying lap
+      // per qualifying minute, so a longer session is not cut short at three
+      // laps while the clock still has ten minutes on it.
+      this.qualifyingLimit = Math.max(60, Math.round((this.opts.qualifyingMinutes ?? 3) * 60));
+      this.qualifyingLapsLimit = Math.max(1, Math.round(this.qualifyingLimit / 60));
+      const practice = Math.max(0, Math.round((this.opts.practiceMinutes ?? 0) * 60));
+      if (practice > 0) this.beginPractice(practice);
+      else this.beginQualifying();
     } else if (mode === 'timetrial') {
       const car = this.playerRacer.car;
       car.resetSession(this.opts.playerConfig.livery.compound);
@@ -360,6 +374,62 @@ export class RaceSession {
       this.hud.setStartLights(0, 'FORMATION COMPLETE');
       this.renderer.setStartLights(0, false);
     }
+  }
+
+  /** FREE PRACTICE: the whole field runs until the session clock hits zero. */
+  private beginPractice(seconds: number): void {
+    this.phase = 'practice';
+    this.practiceTime = seconds;
+    this.clock = 0;
+    this.qualifyingBest = 0;
+    this.qualifyingLaps = 0;
+    this.lineUpGrid(this.racers);
+    const car = this.playerRacer.car;
+    car.placeAt(0.003, 0, 0);
+    this.resetPlayerLapState();
+    this.playerRacer.hasCrossedStart = true;
+    this.playerRacer.lapStart = 0;
+    this.hud.showMessage(`PRACTICE · ${Math.round(seconds / 60)} MIN`, 'flag-yellow', 3200);
+  }
+
+  /** Single-car timed qualifying before the feature race. */
+  private beginQualifying(): void {
+    this.phase = 'qualifying';
+    this.clock = 0;
+    this.qualifyingTime = this.qualifyingLimit;
+    this.qualifyingLaps = 0;
+    this.qualifyingBest = 0;
+    this.playerRacer.car.resetSession(this.opts.playerConfig.livery.compound);
+    this.playerRacer.car.placeAt(0.003, 0, 0);
+    this.resetPlayerLapState();
+    this.playerRacer.hasCrossedStart = true;
+    this.playerRacer.lapStart = 0;
+    this.racers.forEach((r, i) => {
+      if (i === this.playerIndex) return;
+      this.renderer.setCarVisible(i, false);
+      r.car.placeOnGrid(r.gridSlot);
+    });
+    this.hud.showMessage(`QUALIFYING · ${Math.round(this.qualifyingLimit / 60)} MIN`, 'flag-yellow', 3200);
+  }
+
+  private stepPractice(dt: number): void {
+    this.clock += dt;
+    this.practiceTime -= dt;
+    const cars = this.racers.map((r) => r.car);
+    this.racers.forEach((racer) => {
+      const car = racer.car;
+      if (racer.isPlayer) car.setInput(this.playerInput());
+      else if (racer.ai) car.setInput(racer.ai.update(dt, cars));
+      car.setDirtyAir(this.dirtyAirFor(racer));
+      car.drsAllowed = this.drsAllowedFor(racer);
+      car.update(dt);
+      racer.topSpeed = Math.max(racer.topSpeed, car.speedKmh);
+      this.consumePenalty(racer);
+    });
+    this.resolveCarContacts();
+    this.racers.forEach((racer) => this.updateLapProgress(racer));
+    this.updateStandings();
+    if (this.practiceTime <= 0) this.beginQualifying();
   }
 
   private resetPlayerLapState(): void {
@@ -523,6 +593,10 @@ export class RaceSession {
   private step(dt: number): void {
     if (this.phase === 'finished') return;
 
+    if (this.phase === 'practice') {
+      this.stepPractice(dt);
+      return;
+    }
     if (this.phase === 'qualifying') {
       this.stepQualifying(dt);
       this.updateStandings();
@@ -566,7 +640,6 @@ export class RaceSession {
     });
 
     this.resolveCarContacts();
-    this.recoverStuckAI(dt);
     this.racers.forEach((racer) => this.updateLapProgress(racer));
     this.updateStandings();
 
@@ -622,7 +695,7 @@ export class RaceSession {
     this.playerRacer.topSpeed = Math.max(this.playerRacer.topSpeed, car.speedKmh);
     this.updateLapProgress(this.playerRacer);
 
-    if (this.qualifyingLaps >= 3 || this.qualifyingTime <= 0) {
+    if (this.qualifyingLaps >= this.qualifyingLapsLimit || this.qualifyingTime <= 0) {
       this.phase = 'qualifying_complete';
       this.transitionTimer = 2.6;
       this.qualifyingTime = Math.max(0, this.qualifyingTime);
@@ -632,7 +705,9 @@ export class RaceSession {
   }
 
   private playerInput(): DriverInput {
-    if (this.phase !== 'running' && this.phase !== 'qualifying') return { throttle: 0, brake: 0, steer: 0 };
+    if (this.phase !== 'running' && this.phase !== 'qualifying' && this.phase !== 'practice') {
+      return { throttle: 0, brake: 0, steer: 0 };
+    }
     const throttle = this.keys.has('KeyW') || this.keys.has('ArrowUp') ? 1 : 0;
     let brake = this.keys.has('KeyS') || this.keys.has('ArrowDown') ? 1 : 0;
     if (this.keys.has('Space')) brake = 1;
@@ -716,93 +791,72 @@ export class RaceSession {
   }
 
   private resolveCarContacts(): void {
-    // Two collision circles per car approximate its capsule. A single 3 m
-    // circle made clean side-by-side running impossible and caused the
-    // "hitbox glitch" whenever the field ran three abreast.
-    const circles = (car: RaceCar): Array<{ x: number; z: number; r: number }> => {
-      const fx = Math.sin(car.heading);
-      const fz = Math.cos(car.heading);
-      const half = car.collisionHalfLength;
-      const r = car.collisionRadius;
-      return [
-        { x: car.pos.x + fx * half, z: car.pos.z + fz * half, r },
-        { x: car.pos.x - fx * half, z: car.pos.z - fz * half, r },
-      ];
-    };
-
-    for (let i = 0; i < this.racers.length; i++) {
-      for (let j = i + 1; j < this.racers.length; j++) {
-        const a = this.racers[i].car;
-        const b = this.racers[j].car;
-        const aCircles = circles(a);
-        const bCircles = circles(b);
-        let deepest = 0;
-        let normalX = 0;
-        let normalZ = 0;
-        for (const ca of aCircles) {
-          for (const cb of bCircles) {
-            const dx = cb.x - ca.x;
-            const dz = cb.z - ca.z;
-            const dist = Math.hypot(dx, dz);
-            const minDist = ca.r + cb.r;
-            const overlap = minDist - dist;
-            if (overlap <= deepest) continue;
-            deepest = overlap;
-            // Two cars can end up exactly coincident after a restart or a
-            // recovery. Use a deterministic track-lateral normal instead of
-            // dividing by zero and leaving the hitbox unresolved.
-            normalX = dist > 0.0001 ? dx / dist : a.sample.right.x;
-            normalZ = dist > 0.0001 ? dz / dist : a.sample.right.z;
+    // Oriented boxes at the drawn body extents. The previous two-circle capsule
+    // was shorter and narrower than the mesh (a 5.6 m car sat in a 4.9 m shape),
+    // so cars sank into each other nose-to-tail and wheel-to-wheel.
+    //
+    // One pass only pushes the shallowest pair clear; in a three-car scrum that
+    // left up to ~0.4 m of visible interpenetration, so relax the pairs a few
+    // times per substep. Three passes converge without overshooting.
+    const touches: Array<[RaceCar, RaceCar, number]> = [];
+    for (let pass = 0; pass < 3; pass++) {
+      let anyContact = false;
+      for (let i = 0; i < this.racers.length; i++) {
+        for (let j = i + 1; j < this.racers.length; j++) {
+          const a = this.racers[i].car;
+          const b = this.racers[j].car;
+          const contact = carContact(
+            {
+              x: a.pos.x,
+              z: a.pos.z,
+              heading: a.heading,
+              halfLength: a.collisionHalfLength,
+              halfWidth: a.collisionHalfWidth,
+              centerOffset: a.collisionCenterZ,
+            },
+            {
+              x: b.pos.x,
+              z: b.pos.z,
+              heading: b.heading,
+              halfLength: b.collisionHalfLength,
+              halfWidth: b.collisionHalfWidth,
+              centerOffset: b.collisionCenterZ,
+            },
+          );
+          if (!contact) continue;
+          anyContact = true;
+          // Correct only the shallowest axis, split between the pair, and cap the
+          // step so a restart overlap cannot fling a car across the track.
+          const push = Math.min(contact.overlap, 0.8) * 0.52;
+          a.pos.x -= contact.nx * push;
+          a.pos.z -= contact.nz * push;
+          b.pos.x += contact.nx * push;
+          b.pos.z += contact.nz * push;
+          if (pass === 0) {
+            const relativeSpeed = Math.abs(a.vx - b.vx) + Math.abs(a.vy - b.vy) * 0.5;
+            touches.push([a, b, relativeSpeed]);
           }
         }
-        if (deepest <= 0) continue;
-        // Apply a single correction from the deepest contact. Accumulating
-        // every circle pair produced a visible 4 m pop when cars overlapped.
-        const push = deepest * 0.52;
-        a.pos.x -= normalX * push;
-        a.pos.z -= normalZ * push;
-        b.pos.x += normalX * push;
-        b.pos.z += normalZ * push;
-        // Contact scrub, not a hard stop: preserve momentum so a light rub
-        // does not turn into a multi-frame jitter or a sudden spin.
-        const relativeSpeed = Math.abs(a.vx - b.vx) + Math.abs(a.vy - b.vy) * 0.5;
-        // Position correction does the real work. A heavy per-substep speed
-        // scrub made a tight start pack crawl at 0 km/h forever.
-        const scrub = 0.992 - Math.min(0.006, relativeSpeed / 500);
-        a.vx *= scrub;
-        b.vx *= scrub;
-        a.vy *= 0.985;
-        b.vy *= 0.985;
-        a.yawRate *= 0.985;
-        b.yawRate *= 0.985;
-        a.impactPulse = Math.max(a.impactPulse, Math.min(0.6, 0.1 + relativeSpeed / 90));
-        b.impactPulse = Math.max(b.impactPulse, Math.min(0.6, 0.1 + relativeSpeed / 90));
       }
+      if (!anyContact) break;
+    }
+
+    for (const [a, b, relativeSpeed] of touches) {
+      // Contact scrub, not a hard stop: preserve momentum so a light rub
+      // does not turn into a multi-frame jitter or a sudden spin.
+      // Position correction does the real work. A heavy per-substep speed
+      // scrub made a tight start pack crawl at 0 km/h forever.
+      const scrub = 0.992 - Math.min(0.006, relativeSpeed / 500);
+      a.vx *= scrub;
+      b.vx *= scrub;
+      a.vy *= 0.985;
+      b.vy *= 0.985;
+      a.yawRate *= 0.985;
+      b.yawRate *= 0.985;
+      a.impactPulse = Math.max(a.impactPulse, Math.min(0.6, 0.1 + relativeSpeed / 90));
+      b.impactPulse = Math.max(b.impactPulse, Math.min(0.6, 0.1 + relativeSpeed / 90));
     }
     for (const racer of this.racers) racer.car.refreshTrackPose();
-  }
-
-  private aiStuck = new Map<RaceCar, number>();
-
-  private recoverStuckAI(dt: number): void {
-    for (const racer of this.racers) {
-      if (!racer.ai || racer.isPlayer || racer.finished) continue;
-      const car = racer.car;
-      if (car.servicing || car.speed > 2.2) {
-        this.aiStuck.delete(car);
-        continue;
-      }
-      const stuck = (this.aiStuck.get(car) ?? 0) + dt;
-      this.aiStuck.set(car, stuck);
-      if (stuck > 3.2) {
-        // A car beached in gravel or pinned against a barrier should rejoin,
-        // not sit at full throttle confusing the rest of the field. Use a
-        // staggered lane so two recovered cars never spawn inside each other.
-        const lane = (racer.gridSlot % 2 === 0 ? -1 : 1) * this.opts.track.width * 0.17;
-        car.placeAt(car.u, lane, 0);
-        this.aiStuck.delete(car);
-      }
-    }
   }
 
   private updateLapProgress(racer: Racer): void {
@@ -843,7 +897,10 @@ export class RaceSession {
   private onLapCompleted(racer: Racer, lapTime: number): void {
     if (racer.isPlayer) {
       if (lapTime > 8) {
-        const label = racer.laps >= this.opts.laps ? 'RACE FINISH' : `LAP ${racer.laps} COMPLETE`;
+        const label =
+          this.phase !== 'practice' && racer.laps >= this.opts.laps
+            ? 'RACE FINISH'
+            : `LAP ${racer.laps} COMPLETE`;
         this.hud.showMessage(`${label} · ${formatTime(lapTime)}`, 'flag-checkered', 1900);
       }
       if (this.opts.mode === 'timetrial') {
@@ -853,7 +910,7 @@ export class RaceSession {
       if (this.opts.mode === 'weekend' && this.phase === 'qualifying') {
         if (lapTime > 8 && (!this.qualifyingBest || lapTime < this.qualifyingBest)) this.qualifyingBest = lapTime;
         this.qualifyingLaps++;
-        if (this.qualifyingLaps >= 3) {
+        if (this.qualifyingLaps >= this.qualifyingLapsLimit) {
           this.phase = 'qualifying_complete';
           this.transitionTimer = 2.4;
           this.hud.showMessage('QUALIFYING COMPLETE', 'flag-checkered', 2200);
@@ -1000,23 +1057,35 @@ export class RaceSession {
   private updateHud(): void {
     const player = this.playerRacer;
     const telemetry = player.car.getTelemetry();
-    const lapTime = this.phase === 'qualifying' ? 0 : Math.max(0, this.clock - player.lapStart);
-    const total = this.opts.mode === 'timetrial' ? 0 : this.opts.mode === 'weekend' && this.phase === 'qualifying' ? 3 : this.opts.laps;
+    const inTimedSession = this.phase === 'qualifying' || this.phase === 'practice';
+    const lapTime = inTimedSession ? 0 : Math.max(0, this.clock - player.lapStart);
+    const total =
+      this.opts.mode === 'timetrial' || this.phase === 'practice'
+        ? 0
+        : this.opts.mode === 'weekend' && this.phase === 'qualifying'
+          ? this.qualifyingLapsLimit
+          : this.opts.laps;
     const leader = this.sortedRacers()[0];
     const dry = [...dryCompounds(player.compounds)].map((c) => COMPOUNDS[c].short).join(', ') || 'NONE';
     const notes =
-      this.opts.mode === 'weekend'
-        ? `2-COMPOUND RULE · DRY SETS: ${dry} · ${player.car.pitCount} STOP(S)`
-        : this.opts.mode === 'timetrial'
+      this.phase === 'practice'
+        ? `FREE PRACTICE · ${formatTime(Math.max(0, this.practiceTime))} LEFT · PIT ANY TIME`
+        : this.phase === 'qualifying'
+          ? `TIMED QUALIFYING · ${formatTime(Math.max(0, this.qualifyingTime))} LEFT · ${player.laps} LAP(S)`
+          : this.opts.mode === 'weekend'
+            ? `2-COMPOUND RULE · DRY SETS: ${dry} · ${player.car.pitCount} STOP(S)`
+            : this.opts.mode === 'timetrial'
           ? `GHOST CAR · BEST LAP ${player.bestLap ? formatTime(player.bestLap) : '—'} · SPACE BRAKES`
           : `DRS: WITHIN 1.0S IN ZONES · TYRES: ${COMPOUNDS[player.car.getCompound()].label.toUpperCase()} · ${Math.round(player.car.tyreLife * 100)}% LIFE`;
 
     const timingEntries = this.timings(leader);
     const session: SessionSnapshot = {
       modeLabel:
-        this.phase === 'qualifying'
-          ? 'QUALIFYING'
-          : this.opts.mode === 'weekend'
+        this.phase === 'practice'
+          ? 'PRACTICE'
+          : this.phase === 'qualifying'
+            ? 'QUALIFYING'
+            : this.opts.mode === 'weekend'
             ? 'FEATURE RACE'
             : this.opts.mode === 'timetrial'
               ? 'TIME TRIAL'
@@ -1024,11 +1093,16 @@ export class RaceSession {
                 ? 'PARTY RACE'
                 : 'QUICK RACE',
       trackName: this.opts.track.name.toUpperCase(),
-      lap: this.phase === 'qualifying' ? Math.min(3, player.laps + 1) : player.laps + 1,
+      lap: this.phase === 'qualifying' ? Math.min(this.qualifyingLapsLimit, player.laps + 1) : player.laps + 1,
       totalLaps: total,
       position: player.position,
       fieldSize: this.racers.length,
-      time: this.phase === 'qualifying' ? formatTime(Math.max(0, this.qualifyingTime)) : formatTime(lapTime),
+      time:
+        this.phase === 'qualifying'
+          ? formatTime(Math.max(0, this.qualifyingTime))
+          : this.phase === 'practice'
+            ? formatTime(Math.max(0, this.practiceTime))
+            : formatTime(lapTime),
       delta: this.deltaString(),
       deltaSlow: !this.deltaIsBest && this.lastDelta > 0,
       weather: this.opts.weather === 'wet' ? 'WET · 18°C' : this.opts.track.night ? 'NIGHT · 19°C' : 'DRY · 27°C',

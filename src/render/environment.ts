@@ -319,22 +319,28 @@ export function buildEnvironment(track: TrackData, wet = false): THREE.Group {
   group.add(sky);
 
   if (wet) {
+    // Rain reads as streaks, not dots: 900 points spread over 760 m looked like
+    // distant snow and were invisible from the cockpit. This field is dense,
+    // made of short vertical lines, and follows the car (see RaceRenderer).
     const rainGeo = new THREE.BufferGeometry();
     const rainPos: number[] = [];
     const rainRng = mulberry32(seedFrom(track.id) + 991);
-    for (let i = 0; i < 900; i++) {
-      rainPos.push(
-        track.center.x + (rainRng() - 0.5) * 760,
-        8 + rainRng() * 100,
-        track.center.z + (rainRng() - 0.5) * 760,
-      );
+    const spread = 150;
+    for (let i = 0; i < 2400; i++) {
+      const x = (rainRng() - 0.5) * spread * 2;
+      const y = 1 + rainRng() * 55;
+      const z = (rainRng() - 0.5) * spread * 2;
+      rainPos.push(x, y, z, x - 0.5, y + 1.7, z - 0.12);
     }
     rainGeo.setAttribute('position', new THREE.Float32BufferAttribute(rainPos, 3));
-    const rain = new THREE.Points(
+    const rain = new THREE.LineSegments(
       rainGeo,
-      new THREE.PointsMaterial({ color: '#d6e8f2', size: 0.42, transparent: true, opacity: 0.48, depthWrite: false }),
+      new THREE.LineBasicMaterial({ color: '#dceef8', transparent: true, opacity: 0.42, depthWrite: false }),
     );
     rain.name = 'rain';
+    rain.position.set(track.center.x, 0, track.center.z);
+    rain.frustumCulled = false;
+    group.userData.rain = rain;
     group.add(rain);
   }
 

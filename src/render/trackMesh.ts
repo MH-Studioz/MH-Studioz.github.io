@@ -23,10 +23,14 @@ function placeOnTrack(obj: THREE.Object3D, sample: TrackSample, lateral: number,
   obj.quaternion.setFromRotationMatrix(basisFor(sample));
 }
 
+/**
+ * Ribbon that follows the per-sample width, so a stretch narrowed to fit
+ * beside another part of the lap keeps its asphalt inside its own barriers.
+ * `edges` returns the left and right lateral offsets for a sample.
+ */
 function buildRibbon(
   track: TrackData,
-  offset: number,
-  width: number,
+  edges: (s: TrackSample) => [number, number],
   lift: number,
   material: THREE.Material,
   uvScale = 7,
@@ -40,8 +44,9 @@ function buildRibbon(
   for (let i = 0; i <= n; i++) {
     const s = samples[i % n];
     if (i > 0) distance += samples[(i - 1) % n].pos.distanceTo(s.pos);
-    const a = new THREE.Vector3().copy(s.pos).addScaledVector(s.right, offset - width / 2).addScaledVector(s.up, lift);
-    const b = new THREE.Vector3().copy(s.pos).addScaledVector(s.right, offset + width / 2).addScaledVector(s.up, lift);
+    const [left, right] = edges(s);
+    const a = new THREE.Vector3().copy(s.pos).addScaledVector(s.right, left).addScaledVector(s.up, lift);
+    const b = new THREE.Vector3().copy(s.pos).addScaledVector(s.right, right).addScaledVector(s.up, lift);
     positions.set([a.x, a.y, a.z, b.x, b.y, b.z], i * 6);
     uvs.set([0, distance / uvScale, 1, distance / uvScale], i * 4);
     if (i < n) {
@@ -113,8 +118,8 @@ function buildBarriers(track: TrackData): THREE.Mesh {
       const s = samples[i];
       const next = samples[(i + 1) % n];
       const inPit = inRangeWrap(s.u, track.pitEntryU, track.pitExitU);
-      if (track.pitLane.length > 1 && side > 0 && inPit) continue;
-      const offset = side * (s.width / 2 + TRACK_BARRIER_MARGIN);
+      if (track.pitLane.length > 1 && side === track.pitSide && inPit) continue;
+      const offset = side * s.barrier;
       const height = 1.15;
       const a = new THREE.Vector3().copy(s.pos).addScaledVector(s.right, offset);
       const b = new THREE.Vector3().copy(s.pos).addScaledVector(s.right, offset).addScaledVector(s.up, height);
@@ -167,30 +172,32 @@ function buildPitLane(track: TrackData): THREE.Group {
   const boxSample = track.samples[Math.round(track.pitBoxU * track.samples.length) % track.samples.length];
   const wallMat = new THREE.MeshStandardMaterial({ color: '#cfd2d6', roughness: 0.55, metalness: 0.2 });
   const darkMat = new THREE.MeshStandardMaterial({ color: '#1a1e26', roughness: 0.4, metalness: 0.35 });
+  // Everything here is mirrored onto the side the lane actually runs on.
+  const side = track.pitSide;
   const garageGroup = new THREE.Group();
-  placeOnTrack(garageGroup, boxSample, track.width / 2 + 10.0, 0);
+  placeOnTrack(garageGroup, boxSample, side * (track.width / 2 + 10.0), 0);
   // Long along the pit lane (local Z), shallow across it (local X).
   const row = new THREE.Mesh(new THREE.BoxGeometry(8, 5.2, 44), darkMat);
-  row.position.set(5.2, 2.6, 0);
+  row.position.set(side * 5.2, 2.6, 0);
   garageGroup.add(row);
   for (let i = 0; i < 9; i++) {
     const door = new THREE.Mesh(new THREE.BoxGeometry(0.2, 3.2, 2.7), new THREE.MeshStandardMaterial({ color: '#2c3542', roughness: 0.35, metalness: 0.35 }));
-    door.position.set(1.15, 1.6, -16 + i * 4.0);
+    door.position.set(side * 1.15, 1.6, -16 + i * 4.0);
     garageGroup.add(door);
   }
   const roofLine = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.3, 44), new THREE.MeshStandardMaterial({ color: '#e10600', emissive: '#e10600', emissiveIntensity: 0.5 }));
-  roofLine.position.set(1.1, 5.1, 0);
+  roofLine.position.set(side * 1.1, 5.1, 0);
   garageGroup.add(roofLine);
   group.add(garageGroup);
 
   const wall = new THREE.Mesh(new THREE.BoxGeometry(0.28, 1.0, 34), wallMat);
-  wall.position.copy(boxSample.pos).addScaledVector(boxSample.right, track.width / 2 + 8.4);
+  wall.position.copy(boxSample.pos).addScaledVector(boxSample.right, side * (track.width / 2 + 8.4));
   wall.quaternion.setFromRotationMatrix(basisFor(boxSample));
   wall.position.y += 0.5;
   group.add(wall);
   const pitSign = makeBoard('PIT', '#e10600', '#ffffff');
   pitSign.scale.setScalar(0.7);
-  placeOnTrack(pitSign, boxSample, track.width / 2 + 10.5, 2.2);
+  placeOnTrack(pitSign, boxSample, side * (track.width / 2 + 10.5), 2.2);
   group.add(pitSign);
   return group;
 }
@@ -572,8 +579,8 @@ function buildTireWalls(track: TrackData): THREE.Group {
   for (const side of [-1, 1]) {
     for (let i = 0; i < n; i += 6) {
       const s = samples[i];
-      if (track.pitLane.length > 1 && side > 0 && inRangeWrap(s.u, track.pitEntryU, track.pitExitU)) continue;
-      const offset = side * (s.width / 2 + TRACK_BARRIER_MARGIN + 0.4);
+      if (track.pitLane.length > 1 && side === track.pitSide && inRangeWrap(s.u, track.pitEntryU, track.pitExitU)) continue;
+      const offset = side * (s.barrier + 0.4);
       const x = s.pos.x + s.right.x * offset;
       const z = s.pos.z + s.right.z * offset;
       const y = s.pos.y + offset * s.right.y;
@@ -635,7 +642,7 @@ function buildSponsorBoards(track: TrackData): THREE.Group {
     const side = i % 2 === 0 ? 1 : -1;
     const board = makeBoard(texts[i % texts.length], i % 3 === 0 ? '#e10600' : '#16202c', i % 3 === 0 ? '#ffffff' : '#8fe8ff');
     board.scale.setScalar(1.35);
-    placeOnTrack(board, sample, side * (sample.width / 2 + TRACK_BARRIER_MARGIN + 1.8), 0);
+    placeOnTrack(board, sample, side * (sample.barrier + 1.8), 0);
     group.add(board);
   }
   return group;
@@ -722,7 +729,7 @@ export function buildTrackGroup(track: TrackData, wet = false): THREE.Group {
     roughness: track.surface === 'gravel' ? 0.99 : wet ? 0.58 : 0.93,
     metalness: 0.02,
   });
-  group.add(buildRibbon(track, 0, track.width, 0.01, asphalt, 7));
+  group.add(buildRibbon(track, (s) => [-s.width / 2, s.width / 2], 0.01, asphalt, 7));
 
   // Run-off aprons. The physics barrier now sits at the outside edge of this
   // gravel, so there is no invisible wall three metres inside the run-off.
@@ -732,14 +739,36 @@ export function buildTrackGroup(track: TrackData, wet = false): THREE.Group {
     roughness: 0.99,
   });
   for (const side of [-1, 1]) {
-    group.add(buildRibbon(track, side * (track.width / 2 + 3.15), 6.3, -0.005, runoffMat, 8));
+    group.add(
+      buildRibbon(
+        track,
+        (s) => {
+          const edge = s.width / 2;
+          return side > 0 ? [edge, edge + 6.3] : [-edge - 6.3, -edge];
+        },
+        -0.005,
+        runoffMat,
+        8,
+      ),
+    );
   }
   group.add(buildTerrain(track));
 
   if (track.surface === 'asphalt') {
     const white = new THREE.MeshStandardMaterial({ color: '#efefef', roughness: 0.6 });
     for (const side of [-1, 1]) {
-      group.add(buildRibbon(track, side * (track.width / 2 - 0.22), 0.14, 0.022, white, 4));
+      group.add(
+        buildRibbon(
+          track,
+          (s) => {
+            const edge = s.width / 2;
+            return side > 0 ? [edge - 0.29, edge - 0.15] : [-edge + 0.15, -edge + 0.29];
+          },
+          0.022,
+          white,
+          4,
+        ),
+      );
     }
     group.add(buildKerbs(track));
   }

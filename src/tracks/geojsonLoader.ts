@@ -1,6 +1,14 @@
 import type { LonLat, TrackCatalog, TrackFeature } from './types';
 
 export const TRACK_GEOJSON_URL = '../../assets/tracks/circuits.geojson';
+/**
+ * Real circuit centre lines assembled from OpenStreetMap `highway=raceway`
+ * ways (see `.tools/osm-import.mjs`). The bundled GeoJSON only carries a
+ * coarse outline - roughly one point every 45 m, which cannot describe a
+ * chicane - so the imported rings are preferred whenever they are present.
+ * Data (c) OpenStreetMap contributors, ODbL 1.0.
+ */
+export const TRACK_OSM_URL = '../../assets/tracks/osm-circuits.json';
 
 interface RawGeoJSON {
   type: string;
@@ -170,6 +178,24 @@ function normalizeFeature(raw: RawGeoJSON['features'][number]): TrackFeature | n
   };
 }
 
+interface OsmGeometry {
+  length: number;
+  coordinates: [number, number][];
+}
+
+async function loadOsmGeometry(): Promise<Record<string, OsmGeometry>> {
+  try {
+    const res = await fetch(TRACK_OSM_URL, { cache: 'no-cache' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = (await res.json()) as { tracks?: Record<string, OsmGeometry> };
+    return json?.tracks ?? {};
+  } catch (err) {
+    // Offline or not imported yet: the coarse GeoJSON ring is still usable.
+    console.warn('[tracks] OSM geometry unavailable, keeping source outlines:', err);
+    return {};
+  }
+}
+
 let cachedCatalog: TrackCatalog | null = null;
 
 export async function loadTrackCatalog(): Promise<TrackCatalog> {
@@ -203,8 +229,46 @@ export async function loadTrackCatalog(): Promise<TrackCatalog> {
     features.sort((a, b) => a.name.localeCompare(b.name));
     catalog = { features, source: 'embedded fallback', fallback: true };
   }
+  await applyOsmGeometry(catalog);
   cachedCatalog = catalog;
   return catalog;
+}
+
+/** Swap the coarse source outline for the imported OSM ring where available. */
+async function applyOsmGeometry(catalog: TrackCatalog): Promise<void> {
+  const osm = await loadOsmGeometry();
+  let replaced = 0;
+  for (const feature of catalog.features) {
+    const ring = osm[feature.id];
+    if (!ring || !Array.isArray(ring.coordinates) || ring.coordinates.length < 40) continue;
+    const coordinates: LonLat[] = [];
+    for (const pair of ring.coordinates) {
+      const lon = Number(pair[0]);
+      const lat = Number(pair[1]);
+      if (Number.isFinite(lon) && Number.isFinite(lat)) coordinates.push([lon, lat]);
+    }
+    if (coordinates.length < 40) continue;
+    // The imported ring starts wherever the way happened to be split. Rotate it
+    // so index 0 sits on the original start/finish point: the grid slot, the
+    // pit entry and exit and the finish line all key off lap fraction 0.
+    const anchor = feature.coordinates[0];
+    let best = 0;
+    let bestDist = Infinity;
+    for (let i = 0; i < coordinates.length; i++) {
+      const dLat = (coordinates[i][1] - anchor[1]) * 111320;
+      const dLon = (coordinates[i][0] - anchor[0]) * 111320 * Math.cos((anchor[1] * Math.PI) / 180);
+      const d = dLat * dLat + dLon * dLon;
+      if (d < bestDist) {
+        bestDist = d;
+        best = i;
+      }
+    }
+    feature.coordinates = [...coordinates.slice(best), ...coordinates.slice(0, best)];
+    replaced++;
+  }
+  if (replaced > 0) {
+    catalog.source = `${TRACK_OSM_URL} (${replaced} circuits, OpenStreetMap contributors, ODbL)`;
+  }
 }
 
 export function findFeature(catalog: TrackCatalog, id: string): TrackFeature | undefined {

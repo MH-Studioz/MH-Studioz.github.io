@@ -65,12 +65,16 @@ export interface TrackSample {
   u: number;
   /** Asphalt width in metres. */
   width: number;
+  /** Distance from the centerline to the barrier, metres. */
+  barrier: number;
   /** Absolute banking, degrees. */
   bankDeg: number;
   /** +1 = left-hand corner, -1 = right-hand, 0 = straight. */
   turnSign: number;
   curvature: number;
   radius: number;
+  /** Radius from the sharpest local curvature, used for corner speeds. */
+  peakRadius: number;
   sector: 1 | 2 | 3;
   drs: boolean;
   kerb: boolean;
@@ -104,6 +108,8 @@ export interface RacingLine {
   targetSpeed: Float32Array;
   /** 0..1 braking demand for line colouring. */
   braking: Float32Array;
+  /** Radius of the racing line itself, metres. */
+  lineRadius: Float32Array;
 }
 
 export interface TrackData {
@@ -120,6 +126,8 @@ export interface TrackData {
   corners: Corner[];
   drsZones: DRSZone[];
   pitLane: Vector3[];
+  /** Side of the circuit the pit lane runs on: +1 = right, -1 = left. */
+  pitSide: 1 | -1;
   pitEntryU: number;
   pitExitU: number;
   pitBoxU: number;

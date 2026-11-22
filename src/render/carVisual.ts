@@ -328,7 +328,12 @@ export class CarVisual {
       size = box.getSize(new THREE.Vector3());
     }
     const length = Math.max(size.x, size.z, 0.001);
-    const scale = CAR_LENGTH / length;
+    // The 2026 scan is shared by the three open-wheel classes. Scale it from the
+    // class wheelbase so a junior is a visibly smaller car than a hybrid and the
+    // mesh matches the footprint the contact solver uses.
+    const spec = CAR_CLASSES[this.config.carClass];
+    const targetLength = CAR_LENGTH * (spec.wheelbase / CAR_CLASSES.hybrid.wheelbase);
+    const scale = targetLength / length;
     scene.scale.multiplyScalar(scale);
     scene.updateMatrixWorld(true);
 

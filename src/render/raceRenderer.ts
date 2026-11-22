@@ -15,6 +15,10 @@ interface GhostFrame {
   index: number;
 }
 
+/** Body axes in the car's own frame: X right, Z forward. */
+const BODY_X = new THREE.Vector3(1, 0, 0);
+const BODY_Z = new THREE.Vector3(0, 0, 1);
+
 export class RaceRenderer {
   readonly renderer: THREE.WebGLRenderer;
   readonly scene = new THREE.Scene();
@@ -23,6 +27,7 @@ export class RaceRenderer {
   readonly visuals: CarVisual[] = [];
   private readonly remoteVisuals = new Map<string, CarVisual>();
   readonly trackGroup: THREE.Group;
+  private rain: THREE.Object3D | null = null;
   private racingLine: THREE.Object3D | null = null;
   private racingLineMode: RacingLineMode = 'corners';
   private ghost: CarVisual | null = null;
@@ -84,6 +89,7 @@ export class RaceRenderer {
     pmrem.dispose();
 
     const environment = buildEnvironment(track, weather === 'wet');
+    this.rain = (environment.userData as { rain?: THREE.Object3D }).rain ?? null;
     const fog = (environment.userData as { fog?: THREE.Fog }).fog;
     if (fog) this.scene.fog = fog;
     this.scene.background = new THREE.Color(track.night ? '#04060c' : '#a9c6da');
@@ -152,7 +158,11 @@ export class RaceRenderer {
     const qTrack = new THREE.Quaternion().setFromRotationMatrix(basis);
     const trackHeading = Math.atan2(sample.tangent.x, sample.tangent.z);
     const yaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), car.heading - trackHeading);
-    visual.group.quaternion.copy(qTrack).multiply(yaw);
+    // Body attitude on top of the track alignment: the shell dives under
+    // braking, squats on the throttle and rolls onto its outside tyres.
+    const pitch = new THREE.Quaternion().setFromAxisAngle(BODY_X, car.bodyPitch);
+    const roll = new THREE.Quaternion().setFromAxisAngle(BODY_Z, car.bodyRoll);
+    visual.group.quaternion.copy(qTrack).multiply(yaw).multiply(pitch).multiply(roll);
     visual.update(dt, {
       speed: car.speed,
       steer: car.steerAngle,
@@ -171,6 +181,12 @@ export class RaceRenderer {
     if (player) {
       this.rig.update(dt, player.pos, player.heading, player.speed);
       this.rig.addShake(player.impactPulse * 0.5);
+      if (this.rain) {
+        // Keep the rain volume around the car and let it fall.
+        this.rain.position.x = player.pos.x;
+        this.rain.position.z = player.pos.z;
+        this.rain.position.y = -((performance.now() * 0.018) % 55);
+      }
     }
     this.adaptQuality(dt);
     this.render();

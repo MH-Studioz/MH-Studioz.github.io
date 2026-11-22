@@ -43,8 +43,12 @@ export interface CarClassSpec {
   torquePeak: number;
   drs: boolean;
   ers: boolean;
+  /** Half of the body length used for car-to-car contact, in metres. */
   collisionHalfLength: number;
-  collisionRadius: number;
+  /** Half of the body width used for car-to-car contact, in metres. */
+  collisionHalfWidth: number;
+  /** Longitudinal offset of the contact box centre from the car origin, forward positive. */
+  collisionCenterZ: number;
 }
 
 /** Fictional classes keep the game independent of any real championship. */
@@ -75,8 +79,9 @@ export const CAR_CLASSES: Record<CarClass, CarClassSpec> = {
     torquePeak: 435,
     drs: true,
     ers: true,
-    collisionHalfLength: 1.5,
-    collisionRadius: 0.95,
+    collisionHalfLength: 2.8,
+    collisionHalfWidth: 1.0,
+    collisionCenterZ: 0,
   },
   v10: {
     id: 'v10',
@@ -104,8 +109,9 @@ export const CAR_CLASSES: Record<CarClass, CarClassSpec> = {
     torquePeak: 430,
     drs: false,
     ers: false,
-    collisionHalfLength: 1.5,
-    collisionRadius: 0.95,
+    collisionHalfLength: 2.72,
+    collisionHalfWidth: 0.97,
+    collisionCenterZ: 0,
   },
   junior: {
     id: 'junior',
@@ -133,8 +139,9 @@ export const CAR_CLASSES: Record<CarClass, CarClassSpec> = {
     torquePeak: 290,
     drs: false,
     ers: false,
-    collisionHalfLength: 1.35,
-    collisionRadius: 0.88,
+    collisionHalfLength: 2.33,
+    collisionHalfWidth: 0.83,
+    collisionCenterZ: 0,
   },
   gt: {
     id: 'gt',
@@ -162,8 +169,9 @@ export const CAR_CLASSES: Record<CarClass, CarClassSpec> = {
     torquePeak: 520,
     drs: false,
     ers: false,
-    collisionHalfLength: 1.45,
-    collisionRadius: 1.0,
+    collisionHalfLength: 2.4,
+    collisionHalfWidth: 1.07,
+    collisionCenterZ: -0.02,
   },
   prototype: {
     id: 'prototype',
@@ -191,8 +199,9 @@ export const CAR_CLASSES: Record<CarClass, CarClassSpec> = {
     torquePeak: 680,
     drs: false,
     ers: true,
-    collisionHalfLength: 1.7,
-    collisionRadius: 1.02,
+    collisionHalfLength: 2.5,
+    collisionHalfWidth: 1.24,
+    collisionCenterZ: 0.03,
   },
   hypercar: {
     id: 'hypercar',
@@ -220,8 +229,9 @@ export const CAR_CLASSES: Record<CarClass, CarClassSpec> = {
     torquePeak: 820,
     drs: false,
     ers: true,
-    collisionHalfLength: 1.65,
-    collisionRadius: 1.02,
+    collisionHalfLength: 2.42,
+    collisionHalfWidth: 1.17,
+    collisionCenterZ: 0.03,
   },
   stock: {
     id: 'stock',
@@ -249,8 +259,9 @@ export const CAR_CLASSES: Record<CarClass, CarClassSpec> = {
     torquePeak: 700,
     drs: false,
     ers: false,
-    collisionHalfLength: 1.75,
-    collisionRadius: 1.1,
+    collisionHalfLength: 2.46,
+    collisionHalfWidth: 1.11,
+    collisionCenterZ: 0.04,
   },
   kart: {
     id: 'kart',
@@ -278,8 +289,9 @@ export const CAR_CLASSES: Record<CarClass, CarClassSpec> = {
     torquePeak: 30,
     drs: false,
     ers: false,
-    collisionHalfLength: 0.7,
-    collisionRadius: 0.55,
+    collisionHalfLength: 1.23,
+    collisionHalfWidth: 0.78,
+    collisionCenterZ: 0.07,
   },
 };
 
@@ -384,6 +396,16 @@ export const TEAM_PRESETS: TeamPreset[] = [
   { name: 'Falcon Racing', primary: '#f2f4f5', secondary: '#14315f', accent: '#e2001a', tag: 'ION', number: 6, aero: 'balanced', compound: 'soft' },
   { name: 'Stateside Racing', primary: '#e8e8e8', secondary: '#b01220', accent: '#111111', tag: 'ZEN', number: 31, aero: 'low-drag', compound: 'medium' },
   { name: 'Bavaria Motorsport', primary: '#8c8f93', secondary: '#c4001a', accent: '#0a0a0a', tag: 'VEX', number: 27, aero: 'balanced', compound: 'hard' },
+  { name: 'Nordic Works', primary: '#0f2b46', secondary: '#8fd7ff', accent: '#ffffff', tag: 'NRD', number: 77, aero: 'high-downforce', compound: 'medium' },
+  { name: 'Scuderia Lume', primary: '#f5c400', secondary: '#141517', accent: '#ffffff', tag: 'LUM', number: 55, aero: 'balanced', compound: 'soft' },
+  { name: 'Pacific Racing', primary: '#00a19a', secondary: '#0b1b2b', accent: '#f2f2f2', tag: 'PAC', number: 12, aero: 'balanced', compound: 'medium' },
+  { name: 'Iberia Motorsport', primary: '#c1121f', secondary: '#f6e7c1', accent: '#1d1d1d', tag: 'IBR', number: 22, aero: 'high-downforce', compound: 'hard' },
+  { name: 'Aurora GP', primary: '#6a2cff', secondary: '#111318', accent: '#c9b8ff', tag: 'AUR', number: 9, aero: 'low-drag', compound: 'soft' },
+  { name: 'Delta Corse', primary: '#12352a', secondary: '#d4ff4f', accent: '#ffffff', tag: 'DLT', number: 44, aero: 'balanced', compound: 'medium' },
+  { name: 'Kestrel Racing', primary: '#e0e3e6', secondary: '#0d4c8a', accent: '#ff5c00', tag: 'KES', number: 33, aero: 'balanced', compound: 'hard' },
+  { name: 'Onyx Performance', primary: '#15171b', secondary: '#d4a017', accent: '#f4f4f4', tag: 'ONX', number: 88, aero: 'high-downforce', compound: 'soft' },
+  { name: 'Meridian GP', primary: '#1c5f9e', secondary: '#f0f0f0', accent: '#00d1b2', tag: 'MRD', number: 17, aero: 'low-drag', compound: 'medium' },
+  { name: 'Vanguard Racing', primary: '#8b1e3f', secondary: '#0f1116', accent: '#ffd166', tag: 'VNG', number: 5, aero: 'balanced', compound: 'hard' },
 ];
 
 const STORAGE_KEY = 'gp2026.car.v1';

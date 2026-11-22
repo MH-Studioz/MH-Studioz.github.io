@@ -7,3 +7,8 @@ release/
 .DS_Store
 Thumbs.db
 *.log
+
+# Local scratch: browser profiles from automated UI checks and root-level screenshots.
+# Neither is part of the build, and the profiles alone are ~80 MB.
+.tmp-*/
+/*.png

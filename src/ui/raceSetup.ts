@@ -7,16 +7,20 @@ import {
   type CarConfig,
 } from '../garage/carConfig';
 import {
+  AI_AGGRESSION_LABELS,
   AI_DIFFICULTY_LABELS,
   loadRaceSettings,
+  MAX_AI_OPPONENTS,
+  MAX_LAPS,
   saveRaceSettings,
+  type AiAggression,
   type AiDifficulty,
-  type RaceAiCount,
   type RaceSelection,
   type RaceSettings,
   type TimeOfDay,
   type WeatherMode,
 } from '../app/raceOptions';
+import { getTrackMeta } from '../tracks/trackMetadata';
 import type { TrackFeature } from '../tracks/types';
 import type { TrackLibrary } from './trackLibrary';
 import { createTrackPreviewSvg } from '../tracks/geojsonLoader';
@@ -68,6 +72,34 @@ function segment<T extends string | number>(
   return wrap;
 }
 
+function slider(
+  min: number,
+  max: number,
+  step: number,
+  value: number,
+  format: (v: number) => string,
+  onChange: (v: number) => void,
+): HTMLElement {
+  const wrap = document.createElement('div');
+  wrap.className = 'gp-slider';
+  const out = document.createElement('b');
+  out.className = 'gp-slider-value';
+  out.textContent = format(value);
+  const input = document.createElement('input');
+  input.type = 'range';
+  input.min = String(min);
+  input.max = String(max);
+  input.step = String(step);
+  input.value = String(value);
+  input.addEventListener('input', () => {
+    const v = Number(input.value);
+    out.textContent = format(v);
+    onChange(v);
+  });
+  wrap.append(out, input);
+  return wrap;
+}
+
 function field(label: string, control: HTMLElement, hint = ''): HTMLElement {
   const row = document.createElement('div');
   row.className = 'gp-field';
@@ -83,8 +115,10 @@ export class RaceSetupUI {
   private readonly callbacks: RaceSetupCallbacks;
   private settings: RaceSettings;
   private laps = 10;
+  private mode: 'quick' | 'weekend' = 'quick';
   private config: CarConfig;
   private classButtons: HTMLButtonElement[] = [];
+  private weekendFields: HTMLElement[] = [];
 
   constructor(library: TrackLibrary, callbacks: RaceSetupCallbacks) {
     this.library = library;
@@ -112,17 +146,28 @@ export class RaceSetupUI {
     element('race-track-card').addEventListener('click', () => this.library.open());
     element('race-track-change').addEventListener('click', () => this.library.open());
     const laps = element<HTMLInputElement>('race-laps');
+    laps.max = String(MAX_LAPS);
     laps.value = String(this.laps);
     laps.addEventListener('input', () => {
-      this.laps = Number(laps.value);
+      this.laps = Math.max(1, Math.min(MAX_LAPS, Number(laps.value)));
+      element('race-lap-value').textContent = `${this.laps} LAPS`;
       this.refreshSummary();
     });
     element('race-start').addEventListener('click', () => {
+      // A gravel stage is a solo run against the clock, so the whole grid and
+      // the track-limit rules are dropped for it.
+      const rally = this.isRally;
+      const settings: RaceSettings = { ...this.settings };
+      if (rally) {
+        settings.aiCount = 0;
+        settings.trackLimits = 'off';
+        settings.flags = false;
+      }
       this.callbacks.onStart({
-        mode: 'quick',
+        mode: rally ? 'timetrial' : this.mode,
         featureId: this.library.selected.id,
-        laps: this.laps,
-        settings: { ...this.settings },
+        laps: rally ? 1 : this.laps,
+        settings,
       });
     });
   }
@@ -149,7 +194,39 @@ export class RaceSetupUI {
   private buildSettings(): void {
     const panel = element('race-settings-panel');
     panel.innerHTML = '';
+    this.weekendFields = [];
     const s = this.settings;
+
+    const format = segment<'quick' | 'weekend'>(
+      [
+        { label: 'QUICK RACE', value: 'quick' },
+        { label: 'WEEKEND', value: 'weekend' },
+      ],
+      this.mode,
+      (value) => {
+        this.mode = value;
+        this.refreshFormat();
+      },
+    );
+    const practice = slider(
+      0,
+      30,
+      1,
+      s.practiceMinutes,
+      (v) => (v === 0 ? 'SKIP' : `${v} MIN`),
+      (value) => this.updateSetting('practiceMinutes', value),
+    );
+    const qualifying = slider(
+      3,
+      30,
+      1,
+      s.qualifyingMinutes,
+      (v) => `${v} MIN`,
+      (value) => this.updateSetting('qualifyingMinutes', value),
+    );
+    const practiceField = field('PRACTICE', practice, 'FREE RUNNING BEFORE QUALIFYING');
+    const qualifyingField = field('QUALIFYING', qualifying, 'TIMED SESSION · SETS THE GRID');
+    this.weekendFields = [practiceField, qualifyingField];
 
     const weather = segment<WeatherMode>(
       [
@@ -167,13 +244,12 @@ export class RaceSetupUI {
       s.timeOfDay,
       (value) => this.updateSetting('timeOfDay', value),
     );
-    const ai = segment<RaceAiCount>(
-      [
-        { label: '0', value: 0 },
-        { label: '5', value: 5 },
-        { label: '9', value: 9 },
-      ],
+    const ai = slider(
+      0,
+      MAX_AI_OPPONENTS,
+      1,
       s.aiCount,
+      (v) => (v === 0 ? 'SOLO' : `${v} CARS`),
       (value) => this.updateSetting('aiCount', value),
     );
     const difficulty = segment<AiDifficulty>(
@@ -183,6 +259,22 @@ export class RaceSetupUI {
       })),
       s.aiDifficulty,
       (value) => this.updateSetting('aiDifficulty', value),
+    );
+    const aggression = segment<AiAggression>(
+      (['low', 'normal', 'high'] as AiAggression[]).map((value) => ({
+        label: AI_AGGRESSION_LABELS[value].toUpperCase(),
+        value,
+      })),
+      s.aiAggression,
+      (value) => this.updateSetting('aiAggression', value),
+    );
+    const mistakes = segment<'on' | 'off'>(
+      [
+        { label: 'ON', value: 'on' },
+        { label: 'OFF', value: 'off' },
+      ],
+      s.aiMistakes ? 'on' : 'off',
+      (value) => this.updateSetting('aiMistakes', value === 'on'),
     );
     const limits = segment<RaceSettings['trackLimits']>(
       [
@@ -205,14 +297,36 @@ export class RaceSetupUI {
     const grid = document.createElement('div');
     grid.className = 'gp-settings-grid';
     grid.append(
+      field('RACE FORMAT', format, 'QUICK RACE OR FULL WEEKEND'),
+      practiceField,
+      qualifyingField,
       field('WEATHER', weather, 'DRY GRIP OR WET TYRES'),
       field('TIME OF DAY', time, 'LIGHTING & VISIBILITY'),
-      field('AI OPPONENTS', ai, 'SIZE OF THE FIELD'),
+      field('AI OPPONENTS', ai, 'SLIDER · UP TO 20 CARS'),
       field('AI DIFFICULTY', difficulty, 'PACE OF THE GRID'),
+      field('AI AGGRESSION', aggression, 'OVERTAKING AND DEFENDING'),
+      field('AI MISTAKES', mistakes, 'SMALL HUMAN ERRORS'),
       field('TRACK LIMITS', limits, 'OFF, LENIENT OR STRICT'),
       field('RACE FLAGS', flags, 'RACE CONTROL MESSAGES'),
     );
     panel.appendChild(grid);
+    this.refreshFormat();
+  }
+
+  /** Show the session-length sliders only for a weekend, and relabel Start. */
+  private refreshFormat(): void {
+    for (const row of this.weekendFields) {
+      row.style.display = this.mode === 'weekend' ? '' : 'none';
+    }
+    const startLabel = element('race-start').querySelector('span');
+    if (startLabel) {
+      startLabel.textContent = this.isRally
+        ? 'START STAGE'
+        : this.mode === 'weekend'
+          ? 'START WEEKEND'
+          : 'START RACE';
+    }
+    this.refreshSummary();
   }
 
   private updateSetting<K extends keyof RaceSettings>(key: K, value: RaceSettings[K]): void {
@@ -238,20 +352,38 @@ export class RaceSetupUI {
     this.refreshSummary();
   }
 
+  private get isRally(): boolean {
+    const feature = this.library.selected;
+    return (getTrackMeta(feature.id, feature.name).surface ?? 'asphalt') === 'gravel';
+  }
+
   refreshTrack(feature: TrackFeature): void {
+    const rally = (getTrackMeta(feature.id, feature.name).surface ?? 'asphalt') === 'gravel';
     element('race-track-map').innerHTML = createTrackPreviewSvg(feature, 430, 210);
     element('race-track-name').textContent = feature.name;
-    element('race-track-meta').textContent = `${feature.location.toUpperCase()} · ${(feature.length / 1000).toFixed(3)} KM · OPENED ${feature.opened || '—'}`;
-    this.refreshSummary();
+    element('race-track-meta').textContent = `${feature.location.toUpperCase()} · ${(feature.length / 1000).toFixed(3)} KM · ${rally ? 'GRAVEL STAGE' : `OPENED ${feature.opened || '—'}`}`;
+    element('race-lap-value').textContent = rally ? 'STAGE' : `${this.laps} LAPS`;
+    this.refreshFormat();
   }
 
   private refreshSummary(): void {
     const spec = CAR_CLASSES[this.config.carClass];
     const settings = this.settings;
+    const rally = this.isRally;
     element('race-summary-car').textContent = `${this.config.livery.tag} · ${spec.label.toUpperCase()}`;
     element('race-summary-track').textContent = this.library.selected.name.toUpperCase();
-    element('race-summary-conditions').textContent = `${settings.weather.toUpperCase()} · ${settings.timeOfDay.toUpperCase()} · ${settings.aiCount === 0 ? 'SOLO' : `${settings.aiCount} AI`}`;
-    element('race-summary-rules').textContent = `${AI_DIFFICULTY_LABELS[settings.aiDifficulty].toUpperCase()} · LIMITS ${settings.trackLimits.toUpperCase()} · FLAGS ${settings.flags ? 'ON' : 'OFF'}`;
-    element('race-summary-laps').textContent = `${this.laps} LAPS`;
+    element('race-summary-conditions').textContent = rally
+      ? `${settings.weather.toUpperCase()} · ${settings.timeOfDay.toUpperCase()} · STAGE SOLO`
+      : `${settings.weather.toUpperCase()} · ${settings.timeOfDay.toUpperCase()} · ${settings.aiCount === 0 ? 'SOLO' : `${settings.aiCount} AI`}`;
+    element('race-summary-rules').textContent = rally
+      ? 'STAGE TIME TRIAL · NO TRAFFIC · LIMITS OFF'
+      : this.mode === 'weekend'
+        ? `WEEKEND · P ${settings.practiceMinutes === 0 ? 'SKIP' : `${settings.practiceMinutes} MIN`} · Q ${settings.qualifyingMinutes} MIN · ${AI_DIFFICULTY_LABELS[settings.aiDifficulty].toUpperCase()}`
+        : `${AI_DIFFICULTY_LABELS[settings.aiDifficulty].toUpperCase()} · ${AI_AGGRESSION_LABELS[settings.aiAggression].toUpperCase()} AGGRO · LIMITS ${settings.trackLimits.toUpperCase()} · FLAGS ${settings.flags ? 'ON' : 'OFF'}`;
+    element('race-summary-laps').textContent = rally
+      ? 'STAGE RUN'
+      : this.mode === 'weekend'
+        ? `${this.laps} LAP GP`
+        : `${this.laps} LAPS`;
   }
 }
