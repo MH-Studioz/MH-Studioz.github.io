@@ -10,7 +10,7 @@ The site root is a redirect to the shelf, and the repository is published as `MH
 | --- | --- | --- | --- |
 | 01 | [**DEEP ATLAS**](games/deep-atlas/) | Geography rarity game — name the most obscure real place that fits the prompt | 7,970 places · 5 modes · 3 clocks · daily · party |
 | 02 | [**GP 2026**](games/apex-gp-2026/) | Open-wheel, GT, prototype, hypercar, stock and kart racing, plus gravel rally | 41 circuits · 8 cars · 2 rally stages · time trial · party |
-| 03 | [**TRACE**](games/trace/) | Circuit recognition — one unlabeled centerline, one name | 167 circuits · 10 championships · 3 difficulties · podium archive · daily · party |
+| 03 | [**TRACE**](games/trace/) | Circuit recognition — one unlabeled centerline, one name | 145 circuits · 10 championships · 3 difficulties · podium archive · daily · party |
 
 All three share the same shape: pick a mode, get a seeded set of rounds, answer against a clock, and copy an emoji result grid when the run ends. Scores, streaks and settings live in `localStorage`; private parties use a six-digit code over PeerJS, with no account and no server of ours.
 
@@ -74,7 +74,7 @@ The bundled database holds **7,970 places** — 195 countries, 5,082 cities, 1,0
 
 A circuit-recognition game at [`/games/trace/`](games/trace/): one unlabeled centerline, one name.
 
-- **167 circuits** across F1, F2, F3, F4, WEC, NASCAR and IndyCar — 40 real GPS traces from the racing game's track data plus 127 schematic ovals, airfield, street, historic and national road courses.
+- **145 circuits** across F1, F2, F3, F4, WEC, NASCAR and IndyCar — 40 real GPS traces from the racing game's track data plus 105 hand-traced ovals, airfield, street, historic and national road courses.
 - **Ten championships:** each series on its own, plus **MIXED** (all seven), **FEEDER** (F2/F3/F4) and **AMERICAN** (NASCAR/IndyCar). A championship run draws eight circuits from its pool in a fresh order.
 - **Podium archive:** every round of the 2024 and 2025 F1 seasons with its top three, teams and gaps, next to the circuit outline. Pick a season, pick a Grand Prix.
 - **Four modes:** championship, the shared daily trace (a date seed, so everyone reads the same eight outlines until local midnight), private parties and the podium archive. The host picks the championship and difficulty, the six-digit code admits guests, every browser starts the same eight circuit ids, and scores stream into a live board and final standings.
