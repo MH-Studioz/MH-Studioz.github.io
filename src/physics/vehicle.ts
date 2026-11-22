@@ -49,9 +49,12 @@ const CG_HEIGHT = 0.29;
  * of dive and 0.05 rad is 2.9° of roll, which reads clearly in the chase cam
  * without tipping the wheels off the road.
  */
-const PITCH_GAIN = 0.085;
+// The front wing sits ~9 cm off the road, so anything past ~2.5 degrees of dive
+// pushes it through the tarmac. This lands the wing on the surface at full
+// braking: readable, and the limit before it looks broken.
+const PITCH_GAIN = 0.04;
 const PITCH_REF = 22;
-const ROLL_GAIN = 0.075;
+const ROLL_GAIN = 0.09;
 const ROLL_REF = 17;
 
 export interface DriverInput {

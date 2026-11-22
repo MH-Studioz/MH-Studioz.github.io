@@ -115,28 +115,73 @@
         </header>
         <div class="race-setup-layout">
           <main class="race-flow">
-            <section class="gp-block">
-              <div class="gp-block-head"><span class="gp-step">01</span><div><h2>YOUR CAR</h2><small>Choose a class, then tune the setup in the studio.</small></div><button id="race-edit-car" class="gp-text-btn" type="button">EDIT &amp; TUNE →</button></div>
-              <div class="gp-car-row">
-                <div id="race-car-swatch" class="gp-car-swatch"></div>
-                <div class="gp-car-copy"><strong id="race-car-title">A. DRIVER · GP HYBRID</strong><span id="race-car-team">GP 2026 · APX</span><small id="race-car-spec">341 KM/H · OPEN-WHEEL · BALANCED</small></div>
-                <div id="race-car-class-grid" class="gp-class-grid"></div>
+          <nav id="race-tabs" class="race-tabs" role="tablist" aria-label="Race setup"></nav>
+
+          <section class="race-panel active" data-panel="car">
+            <div class="race-car-hero">
+              <div class="race-car-stage">
+                <canvas id="race-car-canvas"></canvas>
+                <div class="race-car-stage-plate">
+                  <span class="eyebrow">SELECTED CLASS</span>
+                  <strong id="race-car-class-label">GP Hybrid</strong>
+                  <small id="race-car-stage-spec">341 KM/H · OPEN WHEEL · BALANCED</small>
+                </div>
+                <span class="race-car-stage-live"><i></i> LIVE 3D</span>
               </div>
-            </section>
+              <div class="race-car-meta">
+                <div class="gp-car-row">
+                  <div id="race-car-swatch" class="gp-car-swatch"></div>
+                  <div class="gp-car-copy">
+                    <strong id="race-car-title">A. DRIVER · GP HYBRID</strong>
+                    <span id="race-car-team">GP 2026 · APX</span>
+                    <small id="race-car-spec">341 KM/H · OPEN WHEEL · BALANCED</small>
+                  </div>
+                </div>
+                <div id="race-car-facts" class="race-car-facts"></div>
+                <div class="race-car-livery">
+                  <span class="eyebrow">LIVERY</span>
+                  <div class="race-car-livery-bar"><i id="race-livery-bar"></i></div>
+                </div>
+                <button id="race-edit-car" class="btn-ghost race-car-edit" type="button"><span>EDIT &amp; TUNE IN THE STUDIO</span><i>→</i></button>
+              </div>
+            </div>
+            <div class="race-class-head">
+              <span class="eyebrow">ALL CARS</span>
+              <small id="race-class-count">8 CLASSES</small>
+            </div>
+            <div id="race-car-class-grid" class="race-class-grid"></div>
+          </section>
 
-            <section class="gp-block">
-              <div class="gp-block-head"><span class="gp-step">02</span><div><h2>YOUR CIRCUIT</h2><small>41 real-world layouts plus two gravel rally stages, rendered from circuit geometry.</small></div><button id="race-track-change" class="gp-text-btn" type="button">CHANGE CIRCUIT →</button></div>
-              <button id="race-track-card" class="gp-track-pick" type="button">
-                <div id="race-track-map" class="gp-track-map"></div>
-                <div class="gp-track-copy"><span class="eyebrow">SELECTED CIRCUIT</span><strong id="race-track-name">AUTODROMO NAZIONALE MONZA</strong><small id="race-track-meta">MONZA · 5.793 KM</small></div>
-                <span class="gp-track-arrow">↗</span>
-              </button>
-            </section>
+          <section class="race-panel" data-panel="circuit">
+            <div class="gp-block-head">
+              <span class="gp-step">02</span>
+              <div><h2>YOUR CIRCUIT</h2><small>41 real-world layouts plus two gravel rally stages, rendered from circuit geometry.</small></div>
+              <button id="race-track-change" class="gp-text-btn" type="button">CHANGE CIRCUIT →</button>
+            </div>
+            <button id="race-track-card" class="gp-track-pick" type="button">
+              <div id="race-track-map" class="gp-track-map"></div>
+              <div class="gp-track-copy"><span class="eyebrow">SELECTED CIRCUIT</span><strong id="race-track-name">AUTODROMO NAZIONALE MONZA</strong><small id="race-track-meta">MONZA · 5.793 KM</small></div>
+              <span class="gp-track-arrow">↗</span>
+            </button>
+            <div class="race-panel-note">GRAVEL STAGES ALWAYS RUN AS A SOLO TIME TRIAL — THE GRID AND TRACK LIMITS ARE DROPPED.</div>
+          </section>
 
-            <section class="gp-block">
-              <div class="gp-block-head"><span class="gp-step">03</span><div><h2>RACE CONDITIONS</h2><small>Weather, time of day, field size and race control.</small></div></div>
-              <div id="race-settings-panel"></div>
-            </section>
+          <section class="race-panel" data-panel="conditions">
+            <div class="gp-block-head">
+              <span class="gp-step">03</span>
+              <div><h2>RACE CONDITIONS</h2><small>Weather, light, and the field you line up against.</small></div>
+            </div>
+            <div id="race-settings-panel"></div>
+          </section>
+
+          <section class="race-panel" data-panel="rules">
+            <div class="gp-block-head">
+              <span class="gp-step">04</span>
+              <div><h2>SESSION RULES</h2><small>Race format, practice and qualifying time, race control.</small></div>
+            </div>
+            <div id="race-rules-panel"></div>
+            <div class="race-panel-note">RACE DISTANCE IS SET IN THE SESSION SUMMARY →</div>
+          </section>
           </main>
 
           <aside class="race-summary">

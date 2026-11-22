@@ -45,6 +45,25 @@ function hideBoot(): void {
   boot?.classList.add('done');
 }
 
+/**
+ * Yields so the boot bar can paint. Background tabs throttle timers to roughly
+ * once a minute, which parked the loading screen at "43 CIRCUITS" until the tab
+ * was brought forward; when nothing is on screen there is nothing to wait for.
+ */
+function nextPaint(ms: number): Promise<void> {
+  if (document.hidden) return Promise.resolve();
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = (): void => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    requestAnimationFrame(done);
+    window.setTimeout(done, ms);
+  });
+}
+
 function showBoot(status: string, percent: number): void {
   boot?.classList.remove('done');
   progress(percent, status);
@@ -62,16 +81,21 @@ async function bootApp(): Promise<void> {
   progress(8, 'LOADING CIRCUIT DATA…');
   const catalog = await loadTrackCatalog();
   progress(38, `${catalog.features.length} CIRCUITS · BUILDING TRACK LIBRARY…`);
-  await new Promise((resolve) => setTimeout(resolve, 40));
+  await nextPaint(40);
 
   let template: Group | null = null;
   try {
-    template = await loadCarTemplate();
+    // The detailed scan is optional: if the download stalls, boot continues on
+    // the procedural cars rather than leaving the player on the loading screen.
+    template = await Promise.race([
+      loadCarTemplate(),
+      new Promise<null>((resolve) => window.setTimeout(() => resolve(null), 12000)),
+    ]);
   } catch (err) {
     console.warn('[boot] car template failed; procedural car will be used.', err);
   }
   progress(64, template ? 'GP 2026 CAR LOADED · PREPARING STUDIO…' : 'PROCEDURAL CAR READY · PREPARING STUDIO…');
-  await new Promise((resolve) => setTimeout(resolve, 30));
+  await nextPaint(30);
 
   const config = loadCarConfig();
   const canvas = document.getElementById('race-canvas') as HTMLCanvasElement | null;
@@ -140,6 +164,7 @@ async function bootApp(): Promise<void> {
       homePreview.stop();
     }
     if (id !== 'garage') garagePreview.stop();
+    syncSetupPreview();
   };
 
   const accountUI = new AccountUI();
@@ -198,10 +223,38 @@ async function bootApp(): Promise<void> {
   let timeTrial!: TimeTrialUI;
   let multiplayer!: MultiplayerUI;
 
+  // The Car tab has its own turntable; it is built on first visit so boot stays light.
+  let setupPreview: GaragePreview | null = null;
+  const ensureSetupPreview = (): GaragePreview | null => {
+    if (setupPreview) return setupPreview;
+    const canvas = document.getElementById('race-car-canvas') as HTMLCanvasElement | null;
+    if (!canvas) return null;
+    setupPreview = new GaragePreview(canvas, loadCarConfig(), template);
+    return setupPreview;
+  };
+  const syncSetupPreview = (): void => {
+    // Short-circuit keeps this safe to call from any screen: only the Car tab renders.
+    if (currentScreen !== 'race' || raceSetup.activeTab !== 'car') {
+      setupPreview?.stop();
+      return;
+    }
+    // Start synchronously: a background tab pauses requestAnimationFrame, and
+    // the stage should be sized and ready the moment the tab is looked at.
+    const preview = ensureSetupPreview();
+    if (!preview) return;
+    preview.start();
+    preview.resize();
+    requestAnimationFrame(() => {
+      preview.resize();
+    });
+  };
+
   raceSetup = new RaceSetupUI(library, {
     onBack: () => setScreen('home'),
     onEditCar: () => openGarage('race'),
     onStart: (selection) => void startRace(selection),
+    onTabChanged: () => syncSetupPreview(),
+    onCarChanged: () => setupPreview?.setConfig(loadCarConfig()),
     onTrackChanged: () => {
       /* The shared library updates every screen that subscribes to it. */
     },
@@ -243,7 +296,7 @@ async function bootApp(): Promise<void> {
     const feature = catalog.features.find((f) => f.id === selection.featureId) ?? library.selected;
     const settings = { ...selection.settings };
     showBoot(`BUILDING ${feature.name.toUpperCase()}…`, 42);
-    await new Promise((resolve) => setTimeout(resolve, 60));
+    await nextPaint(60);
     try {
       const track = buildTrack(feature);
       track.night = settings.timeOfDay === 'night';
@@ -251,7 +304,7 @@ async function bootApp(): Promise<void> {
       // point (setup screen, party, deep link) asked for it.
       const stage = track.surface === 'gravel';
       progress(76, 'PREPARING GRID · 120 HZ PHYSICS…');
-      await new Promise((resolve) => setTimeout(resolve, 40));
+      await nextPaint(40);
       setScreen(null);
       const playerConfig = playerOverride ?? loadCarConfig();
       if (settings.weather === 'wet') playerConfig.livery.compound = 'wet';
@@ -323,18 +376,19 @@ async function bootApp(): Promise<void> {
   setScreen('home');
   homePreview.start();
   progress(100, 'READY');
+  // Hide now, not from a trailing timer: a dropped or throttled timer used to
+  // leave the overlay sitting over a fully booted game.
+  hideBoot();
 
   window.addEventListener('resize', () => {
     if (currentScreen === 'home') homePreview.resize();
     if (currentScreen === 'garage') garagePreview.resize();
+    if (currentScreen === 'race') setupPreview?.resize();
   });
 
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && currentScreen === 'garage') exitGarage();
   });
-
-  await new Promise((resolve) => setTimeout(resolve, 260));
-  hideBoot();
 }
 
 void bootApp().catch((err) => {

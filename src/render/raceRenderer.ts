@@ -168,6 +168,8 @@ export class RaceRenderer {
       steer: car.steerAngle,
       drs: car.drsOpen,
       brake: car.brake,
+      pitch: car.bodyPitch,
+      roll: car.bodyRoll,
       damage: car.damage,
       compound: car.getCompound(),
     });

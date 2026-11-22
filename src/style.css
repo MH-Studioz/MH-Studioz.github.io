@@ -83,6 +83,9 @@ button {
 #boot.done {
   opacity: 0;
   visibility: hidden;
+  /* Transitions pause in background tabs, so the faded overlay must never eat
+     clicks on a fully booted app. */
+  pointer-events: none;
 }
 
 .boot-mark {

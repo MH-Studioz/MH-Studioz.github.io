@@ -155,8 +155,10 @@ export class GaragePreview {
 
   resize(): void {
     const parent = this.canvas.parentElement;
-    const w = Math.max(320, parent?.clientWidth ?? window.innerWidth / 2);
-    const h = Math.max(320, parent?.clientHeight ?? window.innerHeight * 0.7);
+    // Floor on the parent box, not a fixed 320: the race-setup stage is shorter
+    // than the garage turntable and a fixed height stretched the car.
+    const w = Math.max(240, parent?.clientWidth ?? window.innerWidth / 2);
+    const h = Math.max(180, parent?.clientHeight ?? window.innerHeight * 0.7);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;

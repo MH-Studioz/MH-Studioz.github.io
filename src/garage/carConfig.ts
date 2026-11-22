@@ -170,7 +170,7 @@ export const CAR_CLASSES: Record<CarClass, CarClassSpec> = {
     drs: false,
     ers: false,
     collisionHalfLength: 2.4,
-    collisionHalfWidth: 1.07,
+    collisionHalfWidth: 1.09,
     collisionCenterZ: -0.02,
   },
   prototype: {
@@ -260,7 +260,7 @@ export const CAR_CLASSES: Record<CarClass, CarClassSpec> = {
     drs: false,
     ers: false,
     collisionHalfLength: 2.46,
-    collisionHalfWidth: 1.11,
+    collisionHalfWidth: 1.13,
     collisionCenterZ: 0.04,
   },
   kart: {
