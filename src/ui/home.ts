@@ -17,6 +17,7 @@ const CLASS_TOP_SPEED: Record<CarConfig['carClass'], number> = {
   prototype: 330,
   hypercar: 352,
   stock: 310,
+  rally: 205,
   kart: 115,
 };
 

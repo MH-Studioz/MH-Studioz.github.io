@@ -847,9 +847,11 @@
   font-size: 9px;
   letter-spacing: 0.05em;
   text-align: right;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  /* Rules can be long ("PRO · NORMAL AGGRO · LIMITS STRICT · FLAGS ON").
+     Wrapping onto a second line beats clipping it to "FLA…". */
+  white-space: normal;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .race-lap-setting {
@@ -1669,6 +1671,12 @@
     box-shadow: 0 -16px 32px rgba(0, 0, 0, 0.6);
     z-index: 6;
   }
+
+  /* The sticky start bar floats over the tab content, so the last card needs
+     room to scroll clear of it. */
+  .race-flow {
+    padding-bottom: 190px;
+  }
   .race-summary > .eyebrow,
   .race-summary h2,
   .race-summary-rows,
@@ -1899,8 +1907,21 @@
   height: 100%;
 }
 
+/* Scrim under the class plate: without it the label sat on top of the bright
+   turntable ring and turned into unreadable mush on phones. */
+.race-car-stage::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 96px;
+  background: linear-gradient(transparent, rgba(6, 8, 13, 0.94));
+  pointer-events: none;
+  z-index: 1;
+}
+
 .race-car-stage-plate {
   position: absolute;
+  z-index: 2;
   left: 14px;
   bottom: 12px;
   display: flex;
@@ -2145,15 +2166,91 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  /* Two compact columns instead of eight stacked rows: the blurb is hidden at
+     this width, so the cards fit side by side and the tab is ~200px shorter. */
   .race-class-grid {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .race-car-stage {
-    min-height: 220px;
+    min-height: 250px;
   }
 
   .race-car-facts {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The narrow stage puts the car low in its frame, so the bottom-left plate
+   landed on the bodywork. On phones it moves to the empty top-left corner. */
+@media (max-width: 760px) {
+  .race-car-stage-plate {
+    top: 12px;
+    bottom: auto;
+    left: 12px;
+  }
+
+  .race-car-stage::after {
+    display: none;
+  }
+}
+
+/* ================= race setup: responsive pass ================= */
+
+/* A short tab next to a 393px-tall summary looked ragged, so the panel holds a
+   floor roughly equal to the sidebar; taller tabs are unaffected. */
+@media (min-width: 1100px) {
+  .race-panel.active {
+    min-height: 400px;
+  }
+}
+
+/* Wider screens were leaving the hero stage at 640px inside a 1480px page. */
+@media (min-width: 1600px) {
+  .race-setup-layout {
+    max-width: 1680px;
+  }
+
+  .race-car-stage {
+    min-height: 420px;
+  }
+}
+
+/* At 1440p the page was a small card in a huge void: widen it and give the
+   turntable real height. */
+@media (min-width: 2000px) {
+  /* 1440p left the whole screen looking like a postage stamp, so the builder
+     scales up with the display instead of only widening. */
+  #screen-race-setup.active {
+    zoom: 1.2;
+  }
+
+  .race-setup-layout {
+    max-width: 1880px;
+  }
+
+  .race-car-stage {
+    min-height: 500px;
+  }
+
+  .race-panel {
+    padding: 20px;
+  }
+}
+
+/* Phones stacked eight full class cards into a 1,360px scroll: drop the blurb
+   and tighten the row so the list stays scannable. */
+@media (max-width: 760px) {
+  .race-class-card {
+    padding: 9px 10px;
+    gap: 8px;
+  }
+
+  .race-class-body em {
+    display: none;
+  }
+
+  .race-car-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

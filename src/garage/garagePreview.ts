@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { CarConfig } from './carConfig';
 import { CarVisual } from '../render/carVisual';
+import { CLASS_CAR_MODELS, ensureClassCarModel, getClassCarModel } from '../render/carModels';
 
 export class GaragePreview {
   private canvas: HTMLCanvasElement;
@@ -18,7 +19,13 @@ export class GaragePreview {
   private running = false;
   private rebuildTimer: number | null = null;
 
-  constructor(canvas: HTMLCanvasElement, config: CarConfig, template: THREE.Group | null) {
+  constructor(
+    canvas: HTMLCanvasElement,
+    config: CarConfig,
+    template: THREE.Group | null,
+    /** Frames the car tighter in the shorter race-setup stage. */
+    options?: { zoom?: number },
+  ) {
     this.canvas = canvas;
     this.config = config;
     this.template = template;
@@ -33,7 +40,7 @@ export class GaragePreview {
     this.scene.background = new THREE.Color('#080a0f');
     this.scene.fog = new THREE.Fog('#080a0f', 14, 30);
     this.camera = new THREE.PerspectiveCamera(34, 1, 0.1, 100);
-    this.camera.position.set(5.4, 2.7, 8.4);
+    this.camera.position.set(5.4, 2.7, 8.4).multiplyScalar(1 / (options?.zoom ?? 1));
     this.camera.lookAt(0, 0.62, 0);
 
     this.buildStudio();
@@ -132,6 +139,14 @@ export class GaragePreview {
     if (this.car) {
       this.scene.remove(this.car.group);
       this.car = null;
+    }
+    // A class with its own scan starts on the procedural shell for a moment and
+    // swaps over as soon as the download lands, so the stage is never blank.
+    const carClass = this.config.carClass;
+    if (CLASS_CAR_MODELS[carClass] && !getClassCarModel(carClass)) {
+      void ensureClassCarModel(carClass).then(() => {
+        if (this.config.carClass === carClass) this.rebuild();
+      });
     }
     this.car = new CarVisual(this.config, this.template);
     this.car.group.traverse((o) => {

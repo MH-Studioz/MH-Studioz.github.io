@@ -46,6 +46,7 @@ const CLASS_TOP_SPEED: Record<CarClass, number> = {
   prototype: 330,
   hypercar: 352,
   stock: 310,
+  rally: 205,
   kart: 115,
 };
 
@@ -53,6 +54,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   'open-wheel': 'OPEN WHEEL',
   gt: 'GT RACING',
   prototype: 'PROTOTYPE',
+  rally: 'RALLY',
   kart: 'KART',
 };
 
@@ -248,7 +250,7 @@ export class RaceSetupUI {
         <span class="race-class-index">${String(index + 1).padStart(2, '0')}</span>
         <span class="race-class-body">
           <b>${spec.label}</b>
-          <small>${CATEGORY_LABEL[spec.category] ?? spec.category.toUpperCase()}</small>
+          <small>${spec.categoryLabel ?? CATEGORY_LABEL[spec.category] ?? spec.category.toUpperCase()}</small>
           <em>${spec.blurb}</em>
         </span>
         <span class="race-class-speed"><b>${CLASS_TOP_SPEED[value]}</b><small>KM/H</small></span>
@@ -426,7 +428,8 @@ export class RaceSetupUI {
     const carName = element('race-car-title');
     carName.textContent = `${this.config.driverName.toUpperCase()} · ${spec.label.toUpperCase()}`;
     element('race-car-team').textContent = `${this.config.teamName.toUpperCase()} · ${this.config.livery.tag} · ${spec.blurb.toUpperCase()}`;
-    const specLine = `${CLASS_TOP_SPEED[this.config.carClass]} KM/H · ${(CATEGORY_LABEL[spec.category] ?? spec.category).toUpperCase()} · ${this.config.livery.aero.toUpperCase()}`;
+    const caption = spec.categoryLabel ?? CATEGORY_LABEL[spec.category] ?? spec.category.toUpperCase();
+    const specLine = `${CLASS_TOP_SPEED[this.config.carClass]} KM/H · ${caption.toUpperCase()} · ${this.config.livery.aero.toUpperCase()}`;
     element('race-car-spec').textContent = specLine;
     element('race-car-class-label').textContent = spec.label;
     element('race-car-stage-spec').textContent = specLine;
@@ -476,7 +479,8 @@ export class RaceSetupUI {
     const rally = this.isRally;
     const meta: Record<RaceSetupTab, string> = {
       car: spec.label.toUpperCase(),
-      circuit: this.library.selected.name.toUpperCase(),
+      // The city keeps this caption readable in a narrow tab.
+      circuit: (this.library.selected.location || this.library.selected.name).toUpperCase(),
       conditions: rally
         ? `${settings.weather.toUpperCase()} · ${settings.timeOfDay.toUpperCase()} · STAGE`
         : `${settings.weather.toUpperCase()} · ${settings.timeOfDay.toUpperCase()} · ${settings.aiCount === 0 ? 'SOLO' : `${settings.aiCount} AI`}`,

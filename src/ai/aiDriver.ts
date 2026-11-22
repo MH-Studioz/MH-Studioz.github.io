@@ -164,7 +164,9 @@ export class AIDriver {
               ? 76
               : carClass === 'hypercar'
                 ? 88
-                : 94;
+                : carClass === 'rally'
+                  ? 70
+                  : 94;
     this.ds = car.track.length / car.track.samples.length;
     this.profile = this.buildProfile();
 

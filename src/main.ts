@@ -7,6 +7,7 @@ import { loadCarConfig } from './garage/carConfig';
 import type { CarConfig } from './garage/carConfig';
 import { GaragePreview } from './garage/garagePreview';
 import { loadCarTemplate } from './render/carVisual';
+import { ensureClassCarModel } from './render/carModels';
 import { HomeUI } from './ui/home';
 import { RaceSetupUI } from './ui/raceSetup';
 import { TimeTrialUI } from './ui/timeTrial';
@@ -98,6 +99,9 @@ async function bootApp(): Promise<void> {
   await nextPaint(30);
 
   const config = loadCarConfig();
+  // Fetch the selected class's own scan in the background; the studio shows the
+  // procedural shell until it arrives.
+  void ensureClassCarModel(config.carClass);
   const canvas = document.getElementById('race-canvas') as HTMLCanvasElement | null;
   const garageCanvas = document.getElementById('garage-canvas') as HTMLCanvasElement | null;
   const homeCanvas = document.getElementById('home-car-canvas') as HTMLCanvasElement | null;
@@ -229,7 +233,7 @@ async function bootApp(): Promise<void> {
     if (setupPreview) return setupPreview;
     const canvas = document.getElementById('race-car-canvas') as HTMLCanvasElement | null;
     if (!canvas) return null;
-    setupPreview = new GaragePreview(canvas, loadCarConfig(), template);
+    setupPreview = new GaragePreview(canvas, loadCarConfig(), template, { zoom: 1.3 });
     return setupPreview;
   };
   const syncSetupPreview = (): void => {
@@ -308,6 +312,13 @@ async function bootApp(): Promise<void> {
       setScreen(null);
       const playerConfig = playerOverride ?? loadCarConfig();
       if (settings.weather === 'wet') playerConfig.livery.compound = 'wet';
+      // The grid is built immediately below, so the class scan has to be in hand
+      // (bounded, so a slow or missing file cannot hold up the race).
+      progress(70, `LOADING ${playerConfig.carClass.toUpperCase()} CAR…`);
+      await Promise.race([
+        ensureClassCarModel(playerConfig.carClass),
+        new Promise<null>((resolve) => window.setTimeout(() => resolve(null), 8000)),
+      ]);
       session = new RaceSession({
         canvas,
         track,

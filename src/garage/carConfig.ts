@@ -3,7 +3,16 @@ import type { CompoundId } from '../physics/tyres';
 export type FinishType = 'gloss' | 'matte' | 'carbon';
 export type LiveryPattern = 'classic' | 'fade' | 'chevron' | 'halftone' | 'minimal';
 export type AeroPackage = 'low-drag' | 'balanced' | 'high-downforce';
-export type CarClass = 'hybrid' | 'v10' | 'junior' | 'gt' | 'prototype' | 'hypercar' | 'stock' | 'kart';
+export type CarClass =
+  | 'hybrid'
+  | 'v10'
+  | 'junior'
+  | 'gt'
+  | 'prototype'
+  | 'hypercar'
+  | 'stock'
+  | 'rally'
+  | 'kart';
 export type CarCategory = 'open-wheel' | 'gt' | 'prototype' | 'kart';
 
 export const CAR_CLASS_ORDER: CarClass[] = [
@@ -14,6 +23,7 @@ export const CAR_CLASS_ORDER: CarClass[] = [
   'prototype',
   'hypercar',
   'stock',
+  'rally',
   'kart',
 ];
 
@@ -23,6 +33,8 @@ export interface CarClassSpec {
   short: string;
   blurb: string;
   category: CarCategory;
+  /** Card caption when the class needs a name of its own inside a family. */
+  categoryLabel?: string;
   mass: number;
   grip: number;
   aero: number;
@@ -262,6 +274,37 @@ export const CAR_CLASSES: Record<CarClass, CarClassSpec> = {
     collisionHalfLength: 2.46,
     collisionHalfWidth: 1.13,
     collisionCenterZ: 0.04,
+  },
+  rally: {
+    id: 'rally',
+    label: 'GP Rally',
+    short: 'RLY',
+    blurb: 'Rally WRC · 1,230 kg · all-wheel drive on gravel',
+    category: 'gt',
+    categoryLabel: 'RALLY',
+    mass: 1230,
+    grip: 1.16,
+    aero: 0.18,
+    drag: 1.55,
+    wheelbase: 2.51,
+    trackWidth: 1.58,
+    cgHeight: 0.44,
+    yawInertia: 1750,
+    wheelRadius: 0.34,
+    brakeDecel: 27,
+    steerScale: 1.24,
+    fuelCapacity: 60,
+    fuelDensity: 0.745,
+    gearRatios: [3.6, 2.6, 2.0, 1.6, 1.3, 1.08],
+    finalDrive: 3.9,
+    maxRpm: 7000,
+    idleRpm: 1000,
+    torquePeak: 500,
+    drs: false,
+    ers: false,
+    collisionHalfLength: 2.06,
+    collisionHalfWidth: 0.95,
+    collisionCenterZ: 0,
   },
   kart: {
     id: 'kart',

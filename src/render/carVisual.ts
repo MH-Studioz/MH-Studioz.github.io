@@ -6,6 +6,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { CAR_CLASSES, type CarConfig } from '../garage/carConfig';
 import { COMPOUNDS, type CompoundId } from '../physics/tyres';
 import { createNumberTexture, createSidewallTexture } from '../garage/liveryTextures';
+import { CLASS_CAR_MODELS, getClassCarModel, type ClassCarModel } from './carModels';
 
 export interface CarVisualState {
   speed: number;
@@ -53,6 +54,25 @@ const DRIVER_NUMBER_ON_NOSE = true;
 
 let templatePromise: Promise<THREE.Group | null> | null = null;
 const SIDEWALL_CACHE = new Map<CompoundId, THREE.CanvasTexture>();
+
+/**
+ * AI cars of one class are the same shape; only the paint differs. The merged
+ * body geometry is cached per class, so a 20-car grid uploads one set of body
+ * shapes instead of twenty identical copies.
+ */
+const SHARED_BODY_SHAPES = new Map<string, THREE.BufferGeometry[]>();
+/** Carbon, bare metal, tyres and glass look identical on every car. */
+const SHARED_MATERIALS = new Map<string, THREE.MeshStandardMaterial>();
+/** Wheel parts are identical for every car of a class: build each shape once. */
+const SHARED_GEOMETRY = new Map<string, THREE.BufferGeometry>();
+
+function sharedGeometry(key: string, build: () => THREE.BufferGeometry): THREE.BufferGeometry {
+  const cached = SHARED_GEOMETRY.get(key);
+  if (cached) return cached;
+  const geo = build();
+  SHARED_GEOMETRY.set(key, geo);
+  return geo;
+}
 
 function sidewallTexture(compound: CompoundId): THREE.CanvasTexture {
   const cached = SIDEWALL_CACHE.get(compound);
@@ -197,6 +217,31 @@ function solidMaterial(color: string, roughness = 0.4, metalness = 0.2): THREE.M
   return new THREE.MeshStandardMaterial({ color, roughness, metalness });
 }
 
+/** A paint-independent material, created once and used by every car on the grid. */
+function sharedMaterial(key: string, color: string, roughness: number, metalness: number): THREE.MeshStandardMaterial {
+  const cached = SHARED_MATERIALS.get(key);
+  if (cached) return cached;
+  const mat = new THREE.MeshStandardMaterial({ color, roughness, metalness });
+  SHARED_MATERIALS.set(key, mat);
+  return mat;
+}
+
+/** Glass is the same per class, so one tinted pane material serves every car of that class. */
+function glassMaterial(key: string, color: string, roughness: number, metalness: number, opacity: number): THREE.MeshStandardMaterial {
+  const cacheKey = `glass-${key}`;
+  const cached = SHARED_MATERIALS.get(cacheKey);
+  if (cached) return cached;
+  const mat = new THREE.MeshStandardMaterial({
+    color,
+    roughness,
+    metalness,
+    transparent: true,
+    opacity,
+  });
+  SHARED_MATERIALS.set(cacheKey, mat);
+  return mat;
+}
+
 function roleForNode(name: string): 'body' | 'accent' | 'carbon' | 'titanium' | 'wheel' | 'metal' {
   const n = name.toLowerCase();
   if (n.includes('wheel')) return 'wheel';
@@ -207,6 +252,53 @@ function roleForNode(name: string): 'body' | 'accent' | 'carbon' | 'titanium' | 
   return 'body';
 }
 
+/** Paint role a scanned mesh is painted with. */
+type ModelRole = 'body' | 'carbon' | 'metal' | 'accent' | 'glass';
+
+interface WheelPart {
+  geometry: THREE.BufferGeometry;
+  role: ModelRole;
+}
+
+interface WheelPack {
+  /** Wheel centre in car space. */
+  center: THREE.Vector3;
+  radius: number;
+  front: boolean;
+  parts: WheelPart[];
+}
+
+/** Wheel geometry by class: every car of a class shares the same four wheels. */
+const MODEL_WHEELS = new Map<string, WheelPack[]>();
+
+/**
+ * The uploaded scans are thin, often single-sided shells: with front-face culling
+ * the far side of every panel shows through as a hole. Model cars therefore use a
+ * double-sided copy of each non-paint role material — one copy per role for the
+ * whole grid, so this costs no extra programmes.
+ */
+const MODEL_ROLE_MATERIALS = new Map<string, THREE.MeshStandardMaterial>();
+
+function modelRoleMaterial(key: string, base: THREE.MeshStandardMaterial): THREE.MeshStandardMaterial {
+  const cached = MODEL_ROLE_MATERIALS.get(key);
+  if (cached) return cached;
+  const material = base.clone();
+  material.side = THREE.DoubleSide;
+  MODEL_ROLE_MATERIALS.set(key, material);
+  return material;
+}
+
+/** Paint roles for the uploaded closed-wheel scans, whose node names are a mix of
+ *  languages and exporters. Anything unrecognised becomes bodywork. */
+function modelRoleForNode(name: string): ModelRole {
+  const n = name.toLowerCase();
+  if (/window|glass|vitre|glace|windscreen|cristal|windshield/.test(n)) return 'glass';
+  if (/carbon|cabonne|kevlar/.test(n)) return 'carbon';
+  if (/rim|jant|llanta|chrome|chrom|metal|exhaust|echapp|brake|disc|disque/.test(n)) return 'metal';
+  if (/light|far|phare|lamp|headlight|taillight|badge|logo|stripe|decal|mirror|miroir/.test(n)) return 'accent';
+  return 'body';
+}
+
 function ancestorName(obj: THREE.Object3D | null): string {
   let cur = obj;
   while (cur) {
@@ -214,6 +306,29 @@ function ancestorName(obj: THREE.Object3D | null): string {
     cur = cur.parent;
   }
   return '';
+}
+
+/**
+ * Exact world-space bounds. `Box3.setFromObject` trusts each geometry's cached
+ * bounding box, and these uploads arrive with boxes that do not match their
+ * vertices (interleaved, then rebuilt), which put the car half a metre above the
+ * road. Reading the vertices is slower but never lies.
+ */
+function vertexBounds(root: THREE.Object3D): THREE.Box3 {
+  root.updateMatrixWorld(true);
+  const box = new THREE.Box3();
+  const point = new THREE.Vector3();
+  root.traverse((o) => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    const position = mesh.geometry.getAttribute('position');
+    if (!position) return;
+    for (let i = 0; i < position.count; i += 1) {
+      point.fromBufferAttribute(position as THREE.BufferAttribute, i).applyMatrix4(mesh.matrixWorld);
+      box.expandByPoint(point);
+    }
+  });
+  return box;
 }
 
 function taperedBoxGeometry(wRear: number, wFront: number, hRear: number, hFront: number, len: number): THREE.BufferGeometry {
@@ -263,6 +378,8 @@ export class CarVisual {
   private rearWingNode: THREE.Object3D | null = null;
   private helmetVisor: THREE.MeshStandardMaterial | null = null;
   private usingGlb = false;
+  /** True when the shell came from an uploaded class scan rather than a builder. */
+  private usingModel = false;
   private modelScale = 1;
   private mergeAfterBuild = false;
   private readonly lowDetail: boolean;
@@ -278,10 +395,32 @@ export class CarVisual {
     this.config = config;
     this.lowDetail = lowDetail;
     this.uniforms = createLiveryUniforms(config);
-    const category = CAR_CLASSES[config.carClass].category;
-    if (config.carClass === 'hypercar') {
+    const modelSpec = CLASS_CAR_MODELS[config.carClass];
+    const classModel = modelSpec ? getClassCarModel(config.carClass) : null;
+    if (classModel && modelSpec) {
+      try {
+        this.buildFromModel(classModel, modelSpec);
+      } catch (err) {
+        console.warn('[car] class model setup failed, falling back to procedural.', err);
+        this.buildFromBuilder(template);
+      }
+    } else {
+      this.buildFromBuilder(template);
+    }
+    this.mergeStaticBody();
+    this.group.updateMatrixWorld(true);
+    this.addNumberDecals();
+    this.updateLiveryBounds();
+    this.setCompound(config.livery.compound);
+    this.captureWheelRest();
+  }
+
+  /** Procedural geometry for the classes that have no uploaded scan. */
+  private buildFromBuilder(template: THREE.Group | null): void {
+    const category = CAR_CLASSES[this.config.carClass].category;
+    if (this.config.carClass === 'hypercar') {
       this.buildHypercar();
-    } else if (config.carClass === 'stock') {
+    } else if (this.config.carClass === 'stock') {
       this.buildStock();
     } else if (category === 'gt') {
       this.buildGT();
@@ -299,12 +438,6 @@ export class CarVisual {
     } else {
       this.buildProcedural();
     }
-    this.mergeStaticBody();
-    this.group.updateMatrixWorld(true);
-    this.addNumberDecals();
-    this.updateLiveryBounds();
-    this.setCompound(config.livery.compound);
-    this.captureWheelRest();
   }
 
   /**
@@ -352,13 +485,13 @@ export class CarVisual {
       case 'secondary':
         return solidMaterial(this.config.livery.secondary, finish.roughness, finish.metalness);
       case 'carbon':
-        return solidMaterial('#14161a', 0.36, 0.58);
+        return sharedMaterial('carbon', '#14161a', 0.36, 0.58);
       case 'titanium':
-        return solidMaterial('#5a5f66', 0.3, 0.85);
+        return sharedMaterial('titanium', '#5a5f66', 0.3, 0.85);
       case 'wheel':
-        return solidMaterial('#0b0c0e', 0.82, 0.05);
+        return sharedMaterial('wheel', '#0b0c0e', 0.82, 0.05);
       case 'metal':
-        return solidMaterial('#8a8f96', 0.24, 0.95);
+        return sharedMaterial('metal', '#8a8f96', 0.24, 0.95);
     }
   }
 
@@ -456,6 +589,293 @@ export class CarVisual {
     // livery stripe shader works from car-local position.
   }
 
+  /**
+   * Builds a class from its uploaded scan. The scan is painted with the game's
+   * role palette, scaled to the class footprint, and split into four wheel rigs
+   * by position — the uploads name their wheels inconsistently, so geometry near
+   * a corner is the only reliable signal. Everything left over goes through
+   * mergeStaticBody, which shares one merged shape set across the whole grid.
+   */
+  private buildFromModel(model: THREE.Group, spec: ClassCarModel): void {
+    this.usingGlb = true;
+    this.usingModel = true;
+    // Normalisation goes on the inner scene, never on the holder: mergeStaticBody
+    // bakes `rootInverse * meshWorld` into the merged shape and then parents it to
+    // the root, so a transformed root applied the offset twice.
+    const holder = new THREE.Group();
+    const scene = model.clone(true);
+    holder.add(scene);
+    scene.rotation.y += spec.yaw;
+
+    const paint = this.getMaterial('body') as THREE.MeshStandardMaterial;
+    paint.side = THREE.DoubleSide;
+    scene.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.material = this.modelMaterial(modelRoleForNode(ancestorName(mesh)));
+    });
+
+    // Longest axis to Z, scale to the class footprint, then sit on the road.
+    holder.updateMatrixWorld(true);
+    let box = vertexBounds(holder);
+    let size = box.getSize(new THREE.Vector3());
+    if (size.x > size.z) {
+      scene.rotation.y += Math.PI / 2;
+      holder.updateMatrixWorld(true);
+      box = vertexBounds(holder);
+      size = box.getSize(new THREE.Vector3());
+    }
+    const classSpec = CAR_CLASSES[this.config.carClass];
+    const targetLength = classSpec.collisionHalfLength * 2 * 1.02;
+    const scale = targetLength / Math.max(size.z, 0.001);
+    scene.scale.multiplyScalar(scale);
+    holder.updateMatrixWorld(true);
+    box = vertexBounds(holder);
+    const center = box.getCenter(new THREE.Vector3());
+    scene.position.sub(new THREE.Vector3(center.x, box.min.y, center.z));
+    holder.updateMatrixWorld(true);
+
+    this.modelScale = scale;
+    this.modelRoot = holder;
+    this.group.add(holder);
+    this.group.updateMatrixWorld(true);
+
+    const packs = this.extractWheels(holder, classSpec.wheelRadius);
+    for (const pack of packs) {
+      const steer = new THREE.Group();
+      steer.position.copy(pack.center);
+      steer.userData.wheelRig = true;
+      holder.add(steer);
+      const spin = new THREE.Group();
+      steer.add(spin);
+      for (const part of pack.parts) {
+        const mesh = new THREE.Mesh(part.geometry, this.modelMaterial(part.role));
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        spin.add(mesh);
+      }
+      this.wheels.push({ pivot: steer, spin, front: pack.front, axis: 'x', radius: pack.radius });
+    }
+
+    this.mergeAfterBuild = true;
+  }
+
+  /**
+   * Cuts the four wheels out of a scan so they can steer and spin. Whole-mesh
+   * wheels take a fast path; meshes that hold both wheels of an axle (several
+   * uploads do) are split triangle by triangle. The leftover bodywork is put back
+   * as plain meshes for mergeStaticBody. Wheel geometry is cached per class, so a
+   * twenty-car grid shares four sets of wheel meshes.
+   */
+  /** Double-sided material for a scanned body part (paint is per car, rest shared). */
+  private modelMaterial(role: ModelRole): THREE.Material {
+    if (role === 'body') return this.getMaterial('body');
+    const base =
+      role === 'glass'
+        ? glassMaterial('model', '#0d1620', 0.06, 0.9, 0.58)
+        : (this.getMaterial(role) as THREE.MeshStandardMaterial);
+    return modelRoleMaterial(`model-${role}`, base);
+  }
+
+  private extractWheels(holder: THREE.Group, wheelRadius: number): WheelPack[] {
+    holder.updateMatrixWorld(true);
+    const bounds = vertexBounds(holder);
+    const size = bounds.getSize(new THREE.Vector3());
+    // A wheel is a disc around the axle, so test against a cylinder, not a box:
+    // a box tall enough to hold the tyre also swallows the arch above it, which
+    // came back as holes in the bodywork once the wheel spun away.
+    const halfX = Math.max(0.28, size.x * 0.14);
+    const radius = wheelRadius;
+    const corners = [
+      { x: -size.x * 0.4, y: radius, z: size.z * 0.3, front: true },
+      { x: size.x * 0.4, y: radius, z: size.z * 0.3, front: true },
+      { x: -size.x * 0.4, y: radius, z: -size.z * 0.3, front: false },
+      { x: size.x * 0.4, y: radius, z: -size.z * 0.3, front: false },
+    ];
+    const rimRadius = radius * 1.06;
+    const inWheel = (x: number, y: number, z: number): number => {
+      for (let i = 0; i < corners.length; i += 1) {
+        const corner = corners[i];
+        if (Math.abs(x - corner.x) > halfX) continue;
+        if (Math.hypot(y - corner.y, z - corner.z) <= rimRadius) return i;
+      }
+      return -1;
+    };
+
+    const holderInverse = holder.matrixWorld.clone().invert();
+    const meshes: THREE.Mesh[] = [];
+    holder.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.Mesh);
+    });
+
+    interface Sink {
+      role: ModelRole;
+      positions: number[];
+      normals: number[];
+    }
+    const wheelSinks: Array<Map<ModelRole, Sink>> = corners.map(() => new Map());
+    const local = new THREE.Matrix4();
+    const normalMatrix = new THREE.Matrix3();
+    const a = new THREE.Vector3();
+    const b = new THREE.Vector3();
+    const c = new THREE.Vector3();
+    const n = new THREE.Vector3();
+    let anyWheel = false;
+
+    for (const mesh of meshes) {
+      if (mesh.userData.noMerge) continue;
+      const geometry = mesh.geometry;
+      const position = geometry.getAttribute('position');
+      if (!position) continue;
+      const normal = geometry.getAttribute('normal');
+      const index = geometry.index;
+      const vertexCount = index ? index.count : position.count;
+      if (vertexCount < 3) continue;
+
+      local.multiplyMatrices(holderInverse, mesh.matrixWorld);
+      normalMatrix.getNormalMatrix(local);
+      const role = modelRoleForNode(ancestorName(mesh));
+
+      const meshBox = vertexBounds(mesh);
+      const confined = corners
+        .map((corner, i) => ({ corner, i }))
+        .filter(({ corner }) =>
+          meshBox.min.x >= corner.x - halfX && meshBox.max.x <= corner.x + halfX &&
+          meshBox.min.y >= corner.y - rimRadius && meshBox.max.y <= corner.y + rimRadius &&
+          meshBox.min.z >= corner.z - rimRadius && meshBox.max.z <= corner.z + rimRadius,
+        )
+        .map(({ i }) => i);
+
+      if (!confined.length && !this.meshTouchesWheel(meshBox, corners, halfX, rimRadius)) continue;
+
+      const sinkFor = (wheel: number): Sink => {
+        const map = wheelSinks[wheel];
+        let sink = map.get(role);
+        if (!sink) {
+          sink = { role, positions: [], normals: [] };
+          map.set(role, sink);
+        }
+        return sink;
+      };
+      // Fast path: the mesh belongs to exactly one wheel.
+      if (confined.length === 1) {
+        const wheel = confined[0];
+        const sink = sinkFor(wheel);
+        for (let v = 0; v < vertexCount; v += 1) {
+          const at = index ? index.getX(v) : v;
+          a.fromBufferAttribute(position as THREE.BufferAttribute, at).applyMatrix4(local);
+          sink.positions.push(a.x, a.y, a.z);
+          if (normal) {
+            n.fromBufferAttribute(normal as THREE.BufferAttribute, at).applyMatrix3(normalMatrix).normalize();
+            sink.normals.push(n.x, n.y, n.z);
+          }
+        }
+        mesh.parent?.remove(mesh);
+        anyWheel = true;
+        continue;
+      }
+
+      // Slow path: split the triangles between the wheels and the body.
+      const bodyPositions: number[] = [];
+      const bodyNormals: number[] = [];
+      let moved = false;
+      for (let t = 0; t < vertexCount; t += 3) {
+        const ia = index ? index.getX(t) : t;
+        const ib = index ? index.getX(t + 1) : t + 1;
+        const ic = index ? index.getX(t + 2) : t + 2;
+        a.fromBufferAttribute(position as THREE.BufferAttribute, ia).applyMatrix4(local);
+        b.fromBufferAttribute(position as THREE.BufferAttribute, ib).applyMatrix4(local);
+        c.fromBufferAttribute(position as THREE.BufferAttribute, ic).applyMatrix4(local);
+        const wheel = inWheel((a.x + b.x + c.x) / 3, (a.y + b.y + c.y) / 3, (a.z + b.z + c.z) / 3);
+        const targetPositions = wheel >= 0 ? sinkFor(wheel).positions : bodyPositions;
+        const targetNormals = wheel >= 0 ? sinkFor(wheel).normals : bodyNormals;
+        if (wheel >= 0) moved = true;
+        for (const [position3, at] of [[a, ia], [b, ib], [c, ic]] as Array<[THREE.Vector3, number]>) {
+          targetPositions.push(position3.x, position3.y, position3.z);
+          if (normal) {
+            n.fromBufferAttribute(normal as THREE.BufferAttribute, at).applyMatrix3(normalMatrix).normalize();
+            targetNormals.push(n.x, n.y, n.z);
+          }
+        }
+      }
+      if (!moved) continue;
+      anyWheel = true;
+      mesh.parent?.remove(mesh);
+      if (bodyPositions.length) {
+        const remnant = new THREE.BufferGeometry();
+        remnant.setAttribute('position', new THREE.Float32BufferAttribute(bodyPositions, 3));
+        if (bodyNormals.length === bodyPositions.length) {
+          remnant.setAttribute('normal', new THREE.Float32BufferAttribute(bodyNormals, 3));
+        } else {
+          remnant.computeVertexNormals();
+        }
+        const bodyMaterial = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+        const bodyMesh = new THREE.Mesh(remnant, bodyMaterial);
+        bodyMesh.castShadow = true;
+        bodyMesh.receiveShadow = true;
+        holder.add(bodyMesh);
+      }
+    }
+
+    if (!anyWheel) return [];
+
+    const cached = MODEL_WHEELS.get(this.config.carClass);
+    if (cached) return cached;
+
+    const packs: WheelPack[] = [];
+    const point = new THREE.Vector3();
+    wheelSinks.forEach((sinks, wheel) => {
+      const box = new THREE.Box3();
+      for (const sink of sinks.values()) {
+        for (let i = 0; i < sink.positions.length; i += 3) {
+          point.set(sink.positions[i], sink.positions[i + 1], sink.positions[i + 2]);
+          box.expandByPoint(point);
+        }
+      }
+      if (box.isEmpty()) return;
+      const center = box.getCenter(new THREE.Vector3());
+      const wheelSize = box.getSize(new THREE.Vector3());
+      const radius = Math.max(wheelSize.y, wheelSize.z) / 2 || wheelRadius;
+      const parts: WheelPart[] = [];
+      for (const sink of sinks.values()) {
+        const positions = new Float32Array(sink.positions.length);
+        for (let i = 0; i < sink.positions.length; i += 3) {
+          positions[i] = sink.positions[i] - center.x;
+          positions[i + 1] = sink.positions[i + 1] - center.y;
+          positions[i + 2] = sink.positions[i + 2] - center.z;
+        }
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        if (sink.normals.length === sink.positions.length) {
+          geometry.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(sink.normals), 3));
+        } else {
+          geometry.computeVertexNormals();
+        }
+        parts.push({ geometry, role: sink.role });
+      }
+      packs.push({ center, radius, front: corners[wheel].front, parts });
+    });
+    MODEL_WHEELS.set(this.config.carClass, packs);
+    return packs;
+  }
+
+  /** Cheap rejection test: can this mesh possibly contain wheel triangles? */
+  private meshTouchesWheel(
+    box: THREE.Box3,
+    corners: Array<{ x: number; y: number; z: number }>,
+    halfX: number,
+    radius: number,
+  ): boolean {
+    return corners.some(
+      (corner) =>
+        box.min.x <= corner.x + halfX && box.max.x >= corner.x - halfX &&
+        box.min.y <= corner.y + radius && box.max.y >= corner.y - radius &&
+        box.min.z <= corner.z + radius && box.max.z >= corner.z - radius,
+    );
+  }
+
   private addWheelDetails(pivot: THREE.Group, front: boolean, worldRadius: number, axis: 'x' | 'z'): void {
     const localR = worldRadius / this.modelScale;
     const halfWidth = (front ? 0.17 : 0.2) / this.modelScale;
@@ -500,7 +920,7 @@ export class CarVisual {
   }
 
   private addMirrorGlass(): void {
-    const glass = new THREE.MeshStandardMaterial({ color: '#b9c8d2', metalness: 0.9, roughness: 0.1 });
+    const glass = sharedMaterial('mirror-glass', '#b9c8d2', 0.1, 0.9);
     for (const side of [-1, 1]) {
       const mirror = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.055, 0.02), glass);
       mirror.position.set(side * 0.58, 0.86, 0.55);
@@ -525,26 +945,37 @@ export class CarVisual {
     root.add(steer);
     const spin = new THREE.Group();
     steer.add(spin);
-    const tireGeo = new THREE.CylinderGeometry(radius, radius, width, 28, 1, false);
-    tireGeo.rotateZ(Math.PI / 2);
+    const wheelKey = `${front ? 'f' : 'r'}-${radius.toFixed(3)}-${width.toFixed(3)}`;
+    const tireGeo = sharedGeometry(`tire-${wheelKey}`, () => {
+      const geo = new THREE.CylinderGeometry(radius, radius, width, 28, 1, false);
+      geo.rotateZ(Math.PI / 2);
+      return geo;
+    });
     spin.add(new THREE.Mesh(tireGeo, tireMat));
-    const rimGeo = new THREE.CylinderGeometry(radius * 0.62, radius * 0.62, width + 0.008, 20);
-    rimGeo.rotateZ(Math.PI / 2);
+    const rimGeo = sharedGeometry(`rim-${wheelKey}`, () => {
+      const geo = new THREE.CylinderGeometry(radius * 0.62, radius * 0.62, width + 0.008, 20);
+      geo.rotateZ(Math.PI / 2);
+      return geo;
+    });
     spin.add(new THREE.Mesh(rimGeo, metalMat));
     if (!this.lowDetail) {
       const sidewallMat = this.sidewallMaterial();
+      const wallGeo = sharedGeometry(`wall-${wheelKey}`, () => new THREE.CircleGeometry(radius * 0.92, 32));
       for (const side of [-1, 1]) {
-        const wall = new THREE.Mesh(new THREE.CircleGeometry(radius * 0.92, 32), sidewallMat);
+        const wall = new THREE.Mesh(wallGeo, sidewallMat);
         wall.rotation.y = side > 0 ? Math.PI / 2 : -Math.PI / 2;
         wall.position.x = side * (width / 2 + 0.002);
         spin.add(wall);
       }
       const brakeMat = this.brakeDiscMaterial();
-      const discGeo = new THREE.CylinderGeometry(radius * 0.52, radius * 0.52, 0.026, 20);
-      discGeo.rotateZ(Math.PI / 2);
+      const discGeo = sharedGeometry(`disc-${wheelKey}`, () => {
+        const geo = new THREE.CylinderGeometry(radius * 0.52, radius * 0.52, 0.026, 20);
+        geo.rotateZ(Math.PI / 2);
+        return geo;
+      });
       const disc = new THREE.Mesh(discGeo, brakeMat);
       steer.add(disc);
-      const caliper = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.12, 0.18), secondaryMat);
+      const caliper = new THREE.Mesh(sharedGeometry('caliper', () => new THREE.BoxGeometry(0.1, 0.12, 0.18)), secondaryMat);
       caliper.position.set(front ? 0.12 : -0.12, 0.12, 0);
       steer.add(caliper);
     }
@@ -833,13 +1264,7 @@ export class CarVisual {
     const accentMat = this.getMaterial('accent');
     const secondaryMat = this.getMaterial('secondary');
     const carbonMat = this.getMaterial('carbon');
-    const glassMat = new THREE.MeshStandardMaterial({
-      color: '#101820',
-      roughness: 0.16,
-      metalness: 0.65,
-      transparent: true,
-      opacity: 0.88,
-    });
+    const glassMat = glassMaterial('gt', '#101820', 0.16, 0.65, 0.88);
 
     // Wide, low GT3 silhouette with a proper roof and fenders.
     const floor = new THREE.Mesh(new RoundedBoxGeometry(1.86, 0.16, 4.35, 3, 0.07), carbonMat);
@@ -932,13 +1357,7 @@ export class CarVisual {
     const accentMat = this.getMaterial('accent');
     const secondaryMat = this.getMaterial('secondary');
     const carbonMat = this.getMaterial('carbon');
-    const glassMat = new THREE.MeshStandardMaterial({
-      color: '#0a1118',
-      roughness: 0.12,
-      metalness: 0.8,
-      transparent: true,
-      opacity: 0.9,
-    });
+    const glassMat = glassMaterial('hypercar', '#0a1118', 0.12, 0.8, 0.9);
 
     // Wide, low road-based hypercar with a cab-forward canopy.
     const floor = new THREE.Mesh(new RoundedBoxGeometry(2.0, 0.11, 4.5, 3, 0.055), carbonMat);
@@ -1037,13 +1456,7 @@ export class CarVisual {
     const accentMat = this.getMaterial('accent');
     const secondaryMat = this.getMaterial('secondary');
     const carbonMat = this.getMaterial('carbon');
-    const glassMat = new THREE.MeshStandardMaterial({
-      color: '#0d151b',
-      roughness: 0.2,
-      metalness: 0.6,
-      transparent: true,
-      opacity: 0.9,
-    });
+    const glassMat = glassMaterial('stock', '#0d151b', 0.2, 0.6, 0.9);
 
     // Long, tall sedan silhouette with a short deck and a big rear wing.
     const floor = new THREE.Mesh(new RoundedBoxGeometry(1.92, 0.14, 4.68, 3, 0.06), carbonMat);
@@ -1213,13 +1626,7 @@ export class CarVisual {
     const accentMat = this.getMaterial('accent');
     const secondaryMat = this.getMaterial('secondary');
     const carbonMat = this.getMaterial('carbon');
-    const glassMat = new THREE.MeshStandardMaterial({
-      color: '#0b141d',
-      roughness: 0.12,
-      metalness: 0.72,
-      transparent: true,
-      opacity: 0.9,
-    });
+    const glassMat = glassMaterial('prototype', '#0b141d', 0.12, 0.72, 0.9);
     const headlightMat = this.lightMaterial('head');
     const tailMat = this.lightMaterial('tail');
 
@@ -1607,8 +2014,24 @@ export class CarVisual {
       list.push(mesh);
       groups.set(mats[0], list);
     });
-    for (const [material, meshes] of groups) {
-      if (meshes.length < 2) continue;
+    const mergeable = [...groups.entries()].filter(([, meshes]) => meshes.length >= 2);
+    const classKey = this.config.carClass;
+    const cachedShapes = SHARED_BODY_SHAPES.get(classKey);
+    // Only reuse when the class builds exactly the same number of shape groups,
+    // otherwise a cached shape could be paired with the wrong material.
+    const reuseShapes = cachedShapes && cachedShapes.length === mergeable.length ? cachedShapes : null;
+    const builtShapes: THREE.BufferGeometry[] = [];
+    mergeable.forEach(([material, meshes], index) => {
+      const shared = reuseShapes ? reuseShapes[index] : null;
+      if (shared) {
+        for (const mesh of meshes) mesh.parent?.remove(mesh);
+        const mesh = new THREE.Mesh(shared, material);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        root.add(mesh);
+        builtShapes.push(shared);
+        return;
+      }
       const geos: THREE.BufferGeometry[] = [];
       for (const mesh of meshes) {
         mesh.updateMatrixWorld(true);
@@ -1624,16 +2047,24 @@ export class CarVisual {
           mesh.castShadow = true;
           mesh.receiveShadow = true;
           root.add(mesh);
+          builtShapes.push(merged);
+          return;
         }
       } catch {
         // Keep the original meshes if a material has mismatched attributes.
+      } finally {
+        for (const geo of geos) geo.dispose();
       }
-      for (const geo of geos) geo.dispose();
+    });
+    if (!reuseShapes && builtShapes.length === mergeable.length) {
+      SHARED_BODY_SHAPES.set(classKey, builtShapes);
     }
   }
 
   private addNumberDecals(): void {
-    if (!this.modelRoot) return;
+    // The scans have their own bodywork; the decal positions below are authored
+    // for the procedural shells and would float in mid-air on a model car.
+    if (!this.modelRoot || this.usingModel) return;
     const category = CAR_CLASSES[this.config.carClass].category;
     this.group.updateMatrixWorld(true);
     const bounds = new THREE.Box3().setFromObject(this.modelRoot);

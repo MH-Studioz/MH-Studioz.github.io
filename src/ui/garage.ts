@@ -396,6 +396,7 @@ export class GarageUI {
       prototype: 330,
       hypercar: 352,
       stock: 310,
+      rally: 205,
       kart: 115,
     };
     const aeroAuthority =
