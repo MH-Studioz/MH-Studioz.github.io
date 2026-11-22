@@ -16,6 +16,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { EXTRA_TRACKS } from './trace-extra-tracks.mjs';
+import { findDuplicateOutlines, SHAPE_LIMIT } from './check-trace-outlines.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
@@ -962,3 +963,13 @@ console.log(
     .join('  '),
 );
 console.log(`bytes: ${JSON.stringify(out).length}`);
+
+/* A new circuit must not land on an existing silhouette. */
+const duplicates = findDuplicateOutlines(circuits);
+if (duplicates.length) {
+  console.error(`\nFAILED — ${duplicates.length} pair(s) closer than ${SHAPE_LIMIT} on the shape metric`);
+  for (const hit of duplicates) console.error(`  ${hit.score.toFixed(4)}  ${hit.a} ~ ${hit.b}`);
+  console.error('Give one of the pair a different plan or cut it.');
+  process.exit(1);
+}
+console.log(`shapes: OK — no pair closer than ${SHAPE_LIMIT}`);
