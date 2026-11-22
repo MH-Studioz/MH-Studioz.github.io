@@ -14,7 +14,9 @@
         var lower = path.toLowerCase();
         var target = null;
 
-        if (lower === OLD || lower.indexOf(OLD + '/') === 0) {
+        if (lower === '/deep-atlas' || lower.indexOf('/deep-atlas/') === 0) {
+          target = '/games/deep-atlas/';
+        } else if (lower === OLD || lower.indexOf(OLD + '/') === 0) {
           var rest = path.slice(OLD.length) || '/';
           if (rest.indexOf('/games/deep-atlas') === 0) {
             target = '/games/deep-atlas/';

@@ -122,7 +122,7 @@ npm run desktop:build
 
 The workflow needs **Settings → Pages → Source: GitHub Actions** once. It runs `npm ci`, `npm run build`, `actions/configure-pages`, then uploads `dist/` and deploys it. Because the whole site is one artifact, a push that only touches one game still rebuilds and redeploys all three.
 
-Old `mh-studioz.github.io/apex-gp-2026/...` links return `public/404.html`, which forwards them to the matching new path (`/games/`, `/games/deep-atlas/`, `/games/apex-gp-2026/` or `/assets/...`).
+Old `mh-studioz.github.io/apex-gp-2026/...` links, and bare `/deep-atlas/` links, return `public/404.html`, which forwards them to the matching new path (`/games/`, `/games/deep-atlas/`, `/games/apex-gp-2026/` or `/assets/...`).
 
 ## Project layout
 
@@ -143,7 +143,7 @@ games/
   deep-atlas/   DEEP ATLAS page, its atlas data and source
   trace/        TRACE page, source and data/circuits.json
 scripts/        gen-trace-circuits.mjs (rebuilds the TRACE dataset)
-public/         circuits, car model, audio, share images and the 404 forwarder
+public/        circuits, car model, audio, share images and 404.html (old-link forwarder)
 ```
 
 ## Privacy
