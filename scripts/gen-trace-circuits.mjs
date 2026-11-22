@@ -123,18 +123,60 @@ function chaikin(points, passes = 2) {
   return out;
 }
 
-/** Superellipse oval: p controls how straight the straights are. */
-function oval(halfLen, halfWid, p = 3, bulge = 0, n = 220) {
+/**
+ * Oval plan: two straights joined by four corner arcs, so every speedway reads
+ * as a real oval plan instead of one shared superellipse.
+ *   L / Lb    - half length of the front / back straight
+ *   Wf / Wb   - half width at the front / back (different = egg)
+ *   R         - corner radius per corner, as a fraction of the tightest
+ *               adjacent dimension: [frontRight, frontLeft, backLeft, backRight].
+ *               1 is a full semicircular end (paperclip), 0.4 a tight corner.
+ *   bend      - tri-oval kink in the front straight (fraction of Wf)
+ *   lean      - slides the front stretch sideways (D-shaped ovals)
+ */
+function oval(spec, n = 240) {
+  const { L = 600, Lb = L, Wf = 260, Wb = 260, R = [0.8, 0.8, 0.8, 0.8], bend = 0, bendAt = 0, lean = 0 } = spec;
+  const rad = (r, l, w) => Math.max(0.04, Math.min(r, 0.995)) * Math.min(l, w);
+  const rFR = rad(R[0], L, Wf);
+  const rFL = rad(R[1], Lb, Wf);
+  const rBL = rad(R[2], Lb, Wb);
+  const rBR = rad(R[3], L, Wb);
+
+  const segs = [];
+  const line = (x1, y1, x2, y2) => segs.push((t) => [x1 + (x2 - x1) * t, y1 + (y2 - y1) * t]);
+  const arc = (cx, cy, r, a0, a1) => segs.push((t) => {
+    const a = ((a0 + (a1 - a0) * t) * Math.PI) / 180;
+    return [cx + r * Math.sin(a), cy + r * Math.cos(a)];
+  });
+
+  line(-L + rFL, Wf, L - rFR, Wf);
+  arc(L - rFR, Wf - rFR, rFR, 0, 90);
+  if (Wf - rFR > -(Wb - rBR)) line(L, Wf - rFR, L, -(Wb - rBR));
+  arc(L - rBR, -(Wb - rBR), rBR, 90, 180);
+  line(L - rBR, -Wb, -Lb + rBL, -Wb);
+  arc(-Lb + rBL, -(Wb - rBL), rBL, 180, 270);
+  if (-(Wb - rBL) < Wf - rFL) line(-Lb, -(Wb - rBL), -Lb, Wf - rFL);
+  arc(-Lb + rFL, Wf - rFL, rFL, 270, 360);
+
+  // sample by arc length so every segment gets points in proportion
+  const lengths = segs.map((seg) => {
+    const [x1, y1] = seg(0);
+    const [x2, y2] = seg(0.5);
+    const [x3, y3] = seg(1);
+    return Math.hypot(x2 - x1, y2 - y1) + Math.hypot(x3 - x2, y3 - y2);
+  });
+  const total = lengths.reduce((a, b) => a + b, 0);
   const points = [];
-  for (let i = 0; i < n; i++) {
-    const t = (i / n) * Math.PI * 2;
-    const s = Math.sin(t);
-    const c = Math.cos(t);
-    const x = halfLen * Math.sign(s) * Math.abs(s) ** (2 / p);
-    let y = halfWid * Math.sign(c) * Math.abs(c) ** (2 / p);
-    if (bulge && y > 0) y += bulge * Math.exp(-((x / (0.45 * halfLen)) ** 2));
-    points.push([x, y]);
-  }
+  segs.forEach((seg, i) => {
+    const count = Math.max(2, Math.round((lengths[i] / total) * n));
+    for (let k = 0; k < count; k++) {
+      const t = k / count;
+      let [x, y] = seg(t);
+      if (lean && y > 0) x += lean * L * (y / Wf);
+      if (bend && y > 0) y += bend * Wf * Math.exp(-((x / L - bendAt) ** 2) / 0.28);
+      points.push([x, y]);
+    }
+  });
   return points;
 }
 
@@ -198,23 +240,19 @@ const SCHEMATIC = [
   {
     id: 'us-daytona', name: 'Daytona International Speedway', short: 'Daytona', city: 'Daytona Beach',
     country: 'United States', length: 4023, series: ['nascar'],
-    aliases: ['daytona', 'daytona 500', 'speedweeks'], shape: oval(1000, 350, 2.9, 45),
+    aliases: ['daytona', 'daytona 500', 'speedweeks'], shape: oval({ L: 780, Wf: 245, Wb: 285, R: [0.7, 0.7, 0.7, 0.7], bend: 0.18 }),
   },
   {
     id: 'us-talladega', name: 'Talladega Superspeedway', short: 'Talladega', city: 'Lincoln',
     country: 'United States', length: 4281, series: ['nascar'],
-    aliases: ['talladega', 'dega'], shape: oval(1080, 360, 2.9, 60),
+    aliases: ['talladega', 'dega'], shape: oval({ L: 900, Wf: 285, Wb: 255, R: [0.62, 0.62, 0.62, 0.62], bend: 0.12, bendAt: 0.08 }),
   },
   {
     id: 'us-atlanta', name: 'Atlanta Motor Speedway', short: 'Atlanta', city: 'Hampton',
     country: 'United States', length: 2480, series: ['nascar'],
-    aliases: ['atlanta', 'echopark', 'hampton'], shape: oval(620, 300, 2.6, 40),
+    aliases: ['atlanta', 'echopark', 'hampton'], shape: oval({ L: 620, Wf: 220, Wb: 245, R: [0.4, 0.4, 0.4, 0.4], bend: 0.16, bendAt: 0.12 }),
   },
-  {
-    id: 'us-charlotte', name: 'Charlotte Motor Speedway', short: 'Charlotte', city: 'Concord',
-    country: 'United States', length: 2414, series: ['nascar'],
-    aliases: ['charlotte', 'concord', 'coca-cola 600'], shape: oval(600, 290, 2.6, 34),
-  },
+
   {
     id: 'us-charlotte-roval', name: 'Charlotte Motor Speedway Roval', short: 'Charlotte Roval', city: 'Concord',
     country: 'United States', length: 3670, series: ['nascar'],
@@ -229,17 +267,17 @@ const SCHEMATIC = [
   {
     id: 'us-texas', name: 'Texas Motor Speedway', short: 'Texas', city: 'Fort Worth',
     country: 'United States', length: 2400, series: ['nascar'],
-    aliases: ['texas', 'fort worth'], shape: oval(590, 285, 3.0, 40),
+    aliases: ['texas', 'fort worth'], shape: oval({ L: 520, Wf: 270, Wb: 255, R: [0.55, 0.55, 0.55, 0.55], bend: 0.17 }),
   },
   {
     id: 'us-kansas', name: 'Kansas Speedway', short: 'Kansas', city: 'Kansas City',
     country: 'United States', length: 2400, series: ['nascar'],
-    aliases: ['kansas', 'kansas city'], shape: oval(590, 285, 2.9, 30),
+    aliases: ['kansas', 'kansas city'], shape: oval({ L: 560, Wf: 260, Wb: 260, R: [0.8, 0.8, 0.8, 0.8] }),
   },
   {
     id: 'us-michigan', name: 'Michigan International Speedway', short: 'Michigan', city: 'Brooklyn',
     country: 'United States', length: 3200, series: ['nascar'],
-    aliases: ['michigan', 'brooklyn'], shape: oval(800, 360, 3.7, 50),
+    aliases: ['michigan', 'brooklyn'], shape: oval({ L: 830, Wf: 265, Wb: 265, R: [0.34, 0.34, 0.34, 0.34], bend: 0.03 }),
   },
   {
     id: 'us-pocono', name: 'Pocono Raceway', short: 'Pocono', city: 'Long Pond',
@@ -250,52 +288,48 @@ const SCHEMATIC = [
   {
     id: 'us-dover', name: 'Dover Motor Speedway', short: 'Dover', city: 'Dover',
     country: 'United States', length: 1610, series: ['nascar'],
-    aliases: ['dover', 'monster mile'], shape: oval(400, 195, 5.0, 0),
+    aliases: ['dover', 'monster mile'], shape: oval({ L: 430, Wf: 250, Wb: 250, R: [0.75, 0.75, 0.4, 0.4], lean: 0.2 }),
   },
   {
     id: 'us-bristol', name: 'Bristol Motor Speedway', short: 'Bristol', city: 'Bristol',
     country: 'United States', length: 858, series: ['nascar'],
-    aliases: ['bristol', 'thunder valley', 'last great colosseum'], shape: oval(215, 105, 3.6, 0),
+    aliases: ['bristol', 'thunder valley', 'last great colosseum'], shape: oval({ L: 380, Wf: 260, Wb: 240, R: [1, 1, 0.9, 0.9] }),
   },
   {
     id: 'us-martinsville', name: 'Martinsville Speedway', short: 'Martinsville', city: 'Ridgeway',
     country: 'United States', length: 844, series: ['nascar'],
-    aliases: ['martinsville', 'paperclip'], shape: oval(210, 105, 5.0, 0),
+    aliases: ['martinsville', 'paperclip'], shape: oval({ L: 700, Wf: 200, Wb: 200, R: [1, 1, 1, 1] }),
   },
   {
     id: 'us-richmond', name: 'Richmond Raceway', short: 'Richmond', city: 'Richmond',
     country: 'United States', length: 1207, series: ['nascar'],
-    aliases: ['richmond'], shape: oval(300, 145, 4.0, 0),
+    aliases: ['richmond'], shape: oval({ L: 520, Wf: 250, Wb: 250, R: [0.9, 0.9, 0.55, 0.55], lean: 0.24 }),
   },
   {
     id: 'us-new-hampshire', name: 'New Hampshire Motor Speedway', short: 'New Hampshire', city: 'Loudon',
     country: 'United States', length: 1703, series: ['nascar'],
-    aliases: ['new hampshire', 'loudon', 'magic mile'], shape: oval(420, 200, 3.8, 0),
+    aliases: ['new hampshire', 'loudon', 'magic mile'], shape: oval({ L: 600, Wf: 225, Wb: 215, R: [0.5, 0.5, 0.95, 0.95], lean: 0.12 }),
   },
   {
     id: 'us-iowa', name: 'Iowa Speedway', short: 'Iowa', city: 'Newton',
     country: 'United States', length: 1400, series: ['nascar', 'indycar'],
-    aliases: ['iowa', 'newton'], shape: oval(350, 170, 3.6, 0),
+    aliases: ['iowa', 'newton'], shape: oval({ L: 400, Wf: 200, Wb: 300, R: [1, 1, 1, 1] }),
   },
   {
     id: 'us-gateway', name: 'World Wide Technology Raceway', short: 'Gateway', city: 'Madison',
     country: 'United States', length: 2022, series: ['nascar', 'indycar'],
-    aliases: ['gateway', 'wwt', 'madison', 'st louis'], shape: oval(480, 250, 3.2, 0),
+    aliases: ['gateway', 'wwt', 'madison', 'st louis'], shape: oval({ L: 540, Wf: 195, Wb: 300, R: [0.7, 0.7, 0.7, 0.7] }),
   },
-  {
-    id: 'us-homestead', name: 'Homestead-Miami Speedway', short: 'Homestead', city: 'Homestead',
-    country: 'United States', length: 2414, series: ['nascar'],
-    aliases: ['homestead', 'miami homestead'], shape: oval(600, 280, 2.7, 26),
-  },
+
   {
     id: 'us-nashville-ss', name: 'Nashville Superspeedway', short: 'Nashville Superspeedway', city: 'Lebanon',
     country: 'United States', length: 2145, series: ['nascar'],
-    aliases: ['nashville superspeedway', 'lebanon', 'concrete'], shape: oval(520, 250, 4.0, 0),
+    aliases: ['nashville superspeedway', 'lebanon', 'concrete'], shape: oval({ L: 540, Wf: 250, Wb: 250, R: [0.85, 0.85, 0.5, 0.5], lean: 0.22 }),
   },
   {
     id: 'us-milwaukee', name: 'Milwaukee Mile', short: 'Milwaukee', city: 'West Allis',
     country: 'United States', length: 1609, series: ['indycar'],
-    aliases: ['milwaukee', 'west allis', 'wisconsin state fair'], shape: oval(400, 200, 3.6, 0),
+    aliases: ['milwaukee', 'west allis', 'wisconsin state fair'], shape: oval({ L: 500, Wf: 230, Wb: 250, R: [1, 1, 0.55, 0.55], lean: 0.05 }),
   },
   {
     id: 'us-phoenix', name: 'Phoenix Raceway', short: 'Phoenix', city: 'Avondale',
@@ -318,7 +352,7 @@ const SCHEMATIC = [
   {
     id: 'us-bowman-gray', name: 'Bowman Gray Stadium', short: 'Bowman Gray', city: 'Winston-Salem',
     country: 'United States', length: 402, series: ['nascar'],
-    aliases: ['bowman gray', 'winston-salem', 'winston salem'], shape: oval(100, 52, 4.5, 0),
+    aliases: ['bowman gray', 'winston-salem', 'winston salem'], shape: oval({ L: 300, Wf: 190, Wb: 170, R: [0.45, 0.45, 0.45, 0.45] }),
   },
   {
     id: 'us-sonoma', name: 'Sonoma Raceway', short: 'Sonoma', city: 'Sonoma',
@@ -482,6 +516,7 @@ const SCHEMATIC = [
     id: 'it-vallelunga', name: 'Autodromo Vallelunga Piero Taruffi', short: 'Vallelunga', city: 'Campagnano',
     country: 'Italy', length: 4085, series: ['f4'],
     aliases: ['vallelunga', 'piero taruffi', 'campagnano'],
+    squash: [1, 0.86],
     shape: poly([
       [-430, -200], [-180, -260], [80, -240], [300, -160], [380, -40],
       [330, 80], [200, 110], [160, 210], [30, 260], [-100, 230], [-160, 130],
@@ -532,33 +567,15 @@ const EXTRA = [
   {
     id: 'us-las-vegas-motor', name: 'Las Vegas Motor Speedway', short: 'Las Vegas Motor', city: 'Las Vegas',
     country: 'United States', length: 2414, series: ['nascar'],
-    aliases: ['las vegas motor', 'lvms', 'vegas oval'], shape: oval(600, 285, 3.5, 62),
+    aliases: ['las vegas motor', 'lvms', 'vegas oval'], shape: oval({ L: 620, Wf: 265, Wb: 240, R: [0.5, 0.5, 0.5, 0.5], bend: 0.3, bendAt: -0.15 }),
   },
-  {
-    id: 'us-fontana', name: 'Auto Club Speedway', short: 'Fontana', city: 'Fontana',
-    country: 'United States', length: 3220, series: ['nascar'],
-    aliases: ['fontana', 'auto club', 'california speedway'],
-    squash: [1, 0.8],
-    shape: poly([
-      [-700, 300], [-320, 330], [140, 325], [520, 305], [700, 250], [775, 120], [790, -40],
-      [755, -190], [660, -290], [480, -330], [180, -340], [-160, -335], [-450, -320],
-      [-620, -280], [-720, -180], [-755, -30], [-735, 130],
-    ], 1),
-  },
-  {
-    id: 'us-chicagoland', name: 'Chicagoland Speedway', short: 'Chicagoland', city: 'Joliet',
-    country: 'United States', length: 2414, series: ['nascar'],
-    aliases: ['chicagoland', 'joliet'], shape: oval(600, 285, 3.2, 38),
-  },
-  {
-    id: 'us-kentucky', name: 'Kentucky Speedway', short: 'Kentucky', city: 'Sparta',
-    country: 'United States', length: 2414, series: ['nascar'],
-    aliases: ['kentucky', 'sparta'], shape: oval(600, 285, 3.2, 26),
-  },
+
+
+
   {
     id: 'us-north-wilkesboro', name: 'North Wilkesboro Speedway', short: 'North Wilkesboro', city: 'North Wilkesboro',
     country: 'United States', length: 1006, series: ['nascar'],
-    aliases: ['north wilkesboro', 'wilkesboro', 'wilkes county'], shape: oval(250, 92, 5.6, 0),
+    aliases: ['north wilkesboro', 'wilkesboro', 'wilkes county'], shape: oval({ L: 560, Wf: 185, Wb: 195, R: [0.95, 0.95, 0.7, 0.7] }),
   },
   {
     id: 'us-daytona-road', name: 'Daytona International Speedway Road Course', short: 'Daytona Road', city: 'Daytona Beach',
@@ -700,13 +717,13 @@ const MORE = [
     id: 'us-rockingham', name: 'Rockingham Speedway', short: 'Rockingham', city: 'Rockingham',
     country: 'United States', length: 1636, series: ['nascar'],
     aliases: ['rockingham', 'the rock', 'north carolina motor speedway'],
-    shape: oval(430, 240, 3.4, 34),
+    shape: oval({ L: 600, Wf: 215, Wb: 250, R: [0.9, 0.9, 0.5, 0.5], lean: 0.1 }),
   },
   {
     id: 'us-nashville-fairgrounds', name: 'Nashville Fairgrounds Speedway', short: 'Fairgrounds', city: 'Nashville',
     country: 'United States', length: 959, series: ['nascar'],
     aliases: ['fairgrounds', 'nashville fairgrounds', 'music city motorplex'],
-    shape: oval(252, 120, 3.6, 18),
+    shape: oval({ L: 400, Wf: 240, Wb: 255, R: [0.7, 0.7, 0.45, 0.45], lean: 0.34 }),
   },
 
   /* ---- IndyCar ---- */
@@ -724,7 +741,7 @@ const MORE = [
     id: 'jp-motegi-oval', name: 'Twin Ring Motegi Oval', short: 'Motegi Oval', city: 'Motegi',
     country: 'Japan', length: 2414, series: ['indycar'],
     aliases: ['motegi oval', 'twin ring oval'],
-    shape: oval(560, 300, 2.4, 22),
+    shape: oval({ L: 560, Wf: 255, Wb: 275, R: [0.9, 0.5, 0.5, 0.9], lean: 0.34 }),
   },
 
   /* ---- WEC ---- */
@@ -745,7 +762,7 @@ const MORE = [
     id: 'fr-nogaro', name: 'Circuit Paul Armagnac', short: 'Nogaro', city: 'Nogaro',
     country: 'France', length: 3636, series: ['f4'],
     aliases: ['nogaro', 'paul armagnac'],
-    squash: [1, 0.72],
+    squash: [1, 0.88],
     shape: poly([
       [-432, 150], [-140, 192], [140, 192], [350, 162], [432, 90], [420, -10], [330, -60],
       [300, -160], [200, -232], [60, -242], [-70, -200], [-140, -122], [-250, -110],
