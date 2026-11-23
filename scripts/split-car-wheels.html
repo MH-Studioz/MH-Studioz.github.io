@@ -21,7 +21,17 @@
        * still. The Rally's four wheel nodes already carry tyre, rim and rotor, so
        * the sweep finds nothing there and the split is unchanged.
        */
-      const ENVELOPE_SWEEP = new Set(['gt_mustang.glb', 'rally_yaris.glb']);
+      const ENVELOPE_SWEEP = new Map([
+        ['gt_mustang.glb', 'triangles'],
+        ['rally_yaris.glb', 'triangles'],
+        // The junior's brake disc and hub sit inside the tyre while its suspension
+        // arms pass through it. Taking whole parts only (every triangle inside an
+        // envelope) turns the disc without tearing a few triangles out of an arm.
+        ['junior_f4.glb', 'whole'],
+        // The hypercar's brake discs sit in the wheel wells as separate meshes;
+        // its springs and arms cross the envelope, so they are left alone.
+        ['hypercar_kralz.glb', 'whole'],
+      ]);
 
       const labelOf = (mesh) => {
         const names = [mesh.name];
@@ -66,13 +76,31 @@
           if (o.isMesh && WHEELISH.test(labelOf(o))) wheelMeshes.push(o);
         });
 
+        // Corner gate: a node named like a wheel can still be interior trim (the
+        // stock scan names its steering wheel "...STEERING_WHEEL...", and those
+        // triangles used to scatter into whichever corner their centroid landed).
+        // Only geometry out at a corner belongs to a wheel.
+        const carBox = new THREE.Box3();
+        const scratch = new THREE.Vector3();
+        model.traverse((o) => {
+          if (!o.isMesh) return;
+          const position = o.geometry.getAttribute('position');
+          if (!position) return;
+          for (let i = 0; i < position.count; i += 1) carBox.expandByPoint(scratch.fromBufferAttribute(position, i).applyMatrix4(o.matrixWorld));
+        });
+        const carSize = carBox.getSize(new THREE.Vector3());
+        const carLength = Math.max(carSize.x, carSize.z);
+        const carWidth = Math.min(carSize.x, carSize.z);
+
         const body = new THREE.Group();
         body.name = 'body';
-        const buckets = Object.fromEntries(CORNERS.map((c) => [c.key, { pos: [], nor: [] }]));
+        const buckets = Object.fromEntries(CORNERS.map((c) => [c.key, { pos: [], nor: [], centre: null }]));
 
         // Seed pass: the nodes named like wheels carry the tyre. Their triangles
         // are sorted into the four corners by centroid, because several scans put
-        // all four tyres in one mesh.
+        // all four tyres in one mesh. Anything from those nodes that is not at a
+        // corner stays with the body: the stock scan's steering wheel is named
+        // like a wheel too and used to vanish with the cut.
         for (const mesh of wheelMeshes) {
           const pos = mesh.geometry.getAttribute('position');
           const nor = mesh.geometry.getAttribute('normal');
@@ -81,6 +109,8 @@
           const a = new THREE.Vector3();
           const b = new THREE.Vector3();
           const c = new THREE.Vector3();
+          const keepPos = [];
+          const keepNor = [];
           for (let t = 0; t + 2 < count; t += 3) {
             const at = [idx ? idx.getX(t) : t, idx ? idx.getX(t + 1) : t + 1, idx ? idx.getX(t + 2) : t + 2];
             a.fromBufferAttribute(pos, at[0]).applyMatrix4(mesh.matrixWorld);
@@ -88,16 +118,119 @@
             c.fromBufferAttribute(pos, at[2]).applyMatrix4(mesh.matrixWorld);
             const cx = (a.x + b.x + c.x) / 3;
             const cz = (a.z + b.z + c.z) / 3;
-            const corner = CORNERS.find((k) => Math.sign(cx) === k.sx && Math.sign(cz) === k.sz);
-            if (!corner) continue;
-            const bucket = buckets[corner.key];
+            const atCorner = Math.abs(cx) > carWidth * 0.25 && Math.abs(cz) > carLength * 0.15;
+            const corner = atCorner ? CORNERS.find((k) => Math.sign(cx) === k.sx && Math.sign(cz) === k.sz) : undefined;
+            const target = corner ? buckets[corner.key] : null;
             const pts = [a, b, c];
             for (let k = 0; k < 3; k += 1) {
-              bucket.pos.push(pts[k].x, pts[k].y, pts[k].z);
-              if (nor) {
-                const n = new THREE.Vector3().fromBufferAttribute(nor, at[k]).transformDirection(mesh.matrixWorld);
-                bucket.nor.push(n.x, n.y, n.z);
+              const n = nor ? new THREE.Vector3().fromBufferAttribute(nor, at[k]).transformDirection(mesh.matrixWorld) : null;
+              if (target) {
+                target.pos.push(pts[k].x, pts[k].y, pts[k].z);
+                if (n) target.nor.push(n.x, n.y, n.z);
+              } else {
+                keepPos.push(pts[k].x, pts[k].y, pts[k].z);
+                if (n) keepNor.push(n.x, n.y, n.z);
               }
+            }
+          }
+          if (!keepPos.length) continue;
+          const remnant = new THREE.BufferGeometry();
+          remnant.setAttribute('position', new THREE.Float32BufferAttribute(keepPos, 3));
+          if (keepNor.length === keepPos.length) {
+            remnant.setAttribute('normal', new THREE.Float32BufferAttribute(keepNor, 3));
+          } else {
+            remnant.computeVertexNormals();
+          }
+          const shell = new THREE.Mesh(remnant, mesh.material);
+          shell.name = mesh.name;
+          body.add(shell);
+        }
+
+        // Shape pass: the prototype scan names nothing useful, so its wheels are
+        // found by shape instead of by name — a round, wheel-sized mesh sitting at
+        // a corner. Tyre, rim and brake disc are separate meshes on the same axle,
+        // so they are clustered by their y/z centre and moved together.
+        const shapeMeshes = [];
+        if (CORNERS.some((k) => !buckets[k.key].pos.length)) {
+          const meshes = [];
+          model.traverse((o) => { if (o.isMesh) meshes.push(o); });
+          const bounds = new Map();
+          const car = new THREE.Box3();
+          const p = new THREE.Vector3();
+          for (const mesh of meshes) {
+            const box = new THREE.Box3();
+            const position = mesh.geometry.getAttribute('position');
+            if (!position) continue;
+            for (let i = 0; i < position.count; i += 1) box.expandByPoint(p.fromBufferAttribute(position, i).applyMatrix4(mesh.matrixWorld));
+            bounds.set(mesh, box);
+            car.union(box);
+          }
+          const carSize = car.getSize(new THREE.Vector3());
+          const length = Math.max(carSize.x, carSize.z);
+          const width = Math.min(carSize.x, carSize.z);
+
+          const picks = [];
+          for (const [mesh, box] of bounds) {
+            if (wheelMeshes.includes(mesh)) continue;
+            const size = box.getSize(new THREE.Vector3());
+            const centre = box.getCenter(new THREE.Vector3());
+            const diameter = Math.max(size.y, size.z);
+            if (diameter < length * 0.03 || diameter > length * 0.3) continue;
+            if (Math.max(size.y, size.z) / Math.max(Math.min(size.y, size.z), 1e-6) > 1.18) continue;
+            if (size.x > diameter * 0.9) continue;
+            if (Math.abs(centre.x) < width * 0.2 || Math.abs(centre.z) < length * 0.08) continue;
+            const position = mesh.geometry.getAttribute('position');
+            let radial = 0;
+            for (let i = 0; i < position.count; i += 1) {
+              p.fromBufferAttribute(position, i).applyMatrix4(mesh.matrixWorld);
+              radial = Math.max(radial, Math.hypot(p.y - centre.y, p.z - centre.z));
+            }
+            if (Math.abs(radial * 2 - diameter) > diameter * 0.2) continue;
+            picks.push({ mesh, centre, diameter, width: size.x });
+          }
+
+          const clusters = [];
+          for (const pick of picks) {
+            const corner = CORNERS.find((k) => Math.sign(pick.centre.x) === k.sx && Math.sign(pick.centre.z) === k.sz);
+            if (!corner) continue;
+            let cluster = clusters.find((cl) => cl.corner === corner.key && Math.hypot(cl.y - pick.centre.y, cl.z - pick.centre.z) < pick.diameter * 0.12);
+            if (!cluster) {
+              cluster = { corner: corner.key, y: pick.centre.y, z: pick.centre.z, diameter: 0, members: [] };
+              clusters.push(cluster);
+            }
+            cluster.members.push(pick);
+            if (pick.diameter > cluster.diameter) {
+              cluster.diameter = pick.diameter;
+              cluster.y = pick.centre.y;
+              cluster.z = pick.centre.z;
+            }
+          }
+
+          const n = new THREE.Vector3();
+          for (const corner of CORNERS) {
+            const cluster = clusters.filter((cl) => cl.corner === corner.key).sort((x, y) => y.diameter - x.diameter)[0];
+            if (!cluster) continue;
+            // the widest part of the cluster is the tyre, and its centre is the axle
+            const tyre = cluster.members.reduce((x, y) => (y.width > x.width ? y : x));
+            const bucket = buckets[corner.key];
+            bucket.centre = tyre.centre.clone();
+            for (const pick of cluster.members) {
+              const position = pick.mesh.geometry.getAttribute('position');
+              const normal = pick.mesh.geometry.getAttribute('normal');
+              const index = pick.mesh.geometry.index;
+              const count = index ? index.count : position.count;
+              for (let t = 0; t + 2 < count; t += 3) {
+                for (let k = 0; k < 3; k += 1) {
+                  const at = index ? index.getX(t + k) : t + k;
+                  p.fromBufferAttribute(position, at).applyMatrix4(pick.mesh.matrixWorld);
+                  bucket.pos.push(p.x, p.y, p.z);
+                  if (normal) {
+                    n.fromBufferAttribute(normal, at).transformDirection(pick.mesh.matrixWorld);
+                    bucket.nor.push(n.x, n.y, n.z);
+                  }
+                }
+              }
+              if (!shapeMeshes.includes(pick.mesh)) shapeMeshes.push(pick.mesh);
             }
           }
         }
@@ -111,7 +244,7 @@
           const box = new THREE.Box3();
           const p = new THREE.Vector3();
           for (let i = 0; i < bucket.pos.length; i += 3) box.expandByPoint(p.set(bucket.pos[i], bucket.pos[i + 1], bucket.pos[i + 2]));
-          const centre = box.getCenter(new THREE.Vector3());
+          const centre = bucket.centre ? bucket.centre.clone() : box.getCenter(new THREE.Vector3());
           let radius = 0;
           for (let i = 0; i < bucket.pos.length; i += 3) {
             radius = Math.max(radius, Math.hypot(bucket.pos[i + 1] - centre.y, bucket.pos[i + 2] - centre.z));
@@ -132,7 +265,8 @@
         // earlier pass also dropped triangles whose winding faced the axle, but
         // these scans mix windings, so that test left a third of the rim standing
         // still inside the spinning tyre; the radius test alone is the safe cut.
-        if (ENVELOPE_SWEEP.has(file) && envelopes.length) {
+        const sweepMode = ENVELOPE_SWEEP.get(file);
+        if (sweepMode && envelopes.length) {
           const meshes = [];
           body.traverse((o) => {
             if (!o.isMesh) return;
@@ -178,6 +312,16 @@
               }
             }
             if (!inside) continue;
+            // Whole-part mode: a mesh is only taken when every one of its
+            // triangles belongs to a wheel, so nothing is torn in half.
+            if (sweepMode === 'whole') {
+              let complete = true;
+              for (let t = 0; t + 2 < count && complete; t += 3) {
+                const own = owners[t];
+                if (!(own >= 0 && own === owners[t + 1] && own === owners[t + 2])) complete = false;
+              }
+              if (!complete) continue;
+            }
 
             const keptPos = [];
             const keptNor = [];
@@ -265,7 +409,7 @@
 
         // the shell keeps the scan's own transform; wheel groups sit outside it
         body.add(model);
-        for (const mesh of wheelMeshes) mesh.parent?.remove(mesh);
+        for (const mesh of [...wheelMeshes, ...shapeMeshes]) mesh.parent?.remove(mesh);
         const strays = [];
         body.traverse((o) => {
           if (!o.isMesh) return;
