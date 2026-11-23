@@ -14,6 +14,14 @@
         { key: 'lr', sx: -1, sz: -1 },
         { key: 'rr', sx: 1, sz: -1 },
       ];
+      /**
+       * Scans that get the envelope sweep as well as the tyre seed. The GT's tyre
+       * is one mesh while its rims, hubs and rotors are separate body meshes in
+       * the same wheel volume, so the seed alone would leave the spokes standing
+       * still. The Rally's four wheel nodes already carry tyre, rim and rotor, so
+       * the sweep finds nothing there and the split is unchanged.
+       */
+      const ENVELOPE_SWEEP = new Set(['gt_mustang.glb', 'rally_yaris.glb']);
 
       const labelOf = (mesh) => {
         const names = [mesh.name];
@@ -51,6 +59,9 @@
         body.name = 'body';
         const buckets = Object.fromEntries(CORNERS.map((c) => [c.key, { pos: [], nor: [] }]));
 
+        // Seed pass: the nodes named like wheels carry the tyre. Their triangles
+        // are sorted into the four corners by centroid, because several scans put
+        // all four tyres in one mesh.
         for (const mesh of wheelMeshes) {
           const pos = mesh.geometry.getAttribute('position');
           const nor = mesh.geometry.getAttribute('normal');
@@ -80,7 +91,9 @@
           }
         }
 
-        const stats = [];
+        // Measure one tyre envelope per corner: axle centre, rubber radius and
+        // the tyre's own width. Everything below is judged against these.
+        const envelopes = [];
         for (const corner of CORNERS) {
           const bucket = buckets[corner.key];
           if (!bucket.pos.length) continue;
@@ -88,11 +101,128 @@
           const p = new THREE.Vector3();
           for (let i = 0; i < bucket.pos.length; i += 3) box.expandByPoint(p.set(bucket.pos[i], bucket.pos[i + 1], bucket.pos[i + 2]));
           const centre = box.getCenter(new THREE.Vector3());
+          let radius = 0;
+          for (let i = 0; i < bucket.pos.length; i += 3) {
+            radius = Math.max(radius, Math.hypot(bucket.pos[i + 1] - centre.y, bucket.pos[i + 2] - centre.z));
+          }
+          envelopes.push({
+            key: corner.key,
+            centre,
+            radius,
+            halfWidth: (box.max.x - box.min.x) / 2,
+            swept: 0,
+          });
+        }
+
+        // Envelope sweep: any triangle of the remaining shell whose three corners
+        // all sit inside one tyre's volume is part of that wheel (rims, spokes,
+        // hub, brake rotor). The envelope is the tyre itself, so the arch lip —
+        // measured at ~15% larger radius on the GT — stays with the body. An
+        // earlier pass also dropped triangles whose winding faced the axle, but
+        // these scans mix windings, so that test left a third of the rim standing
+        // still inside the spinning tyre; the radius test alone is the safe cut.
+        if (ENVELOPE_SWEEP.has(file) && envelopes.length) {
+          const meshes = [];
+          body.traverse((o) => {
+            if (!o.isMesh) return;
+            let cur = o.parent;
+            while (cur) { if (cur.name?.startsWith('wheel-')) return; cur = cur.parent; }
+            meshes.push(o);
+          });
+          // The shell has not been added to `body` yet, so walk the scan instead.
+          meshes.length = 0;
+          model.traverse((o) => { if (o.isMesh && !wheelMeshes.includes(o)) meshes.push(o); });
+
+          const p = new THREE.Vector3();
+          const n = new THREE.Vector3();
+          for (const mesh of meshes) {
+            const geometry = mesh.geometry;
+            const pos = geometry.getAttribute('position');
+            const nor = geometry.getAttribute('normal');
+            const index = geometry.index;
+            if (!pos) continue;
+            const count = index ? index.count : pos.count;
+            const world = new Float32Array(count * 3);
+            for (let v = 0; v < count; v += 1) {
+              const at = index ? index.getX(v) : v;
+              p.fromBufferAttribute(pos, at).applyMatrix4(mesh.matrixWorld);
+              world[v * 3] = p.x;
+              world[v * 3 + 1] = p.y;
+              world[v * 3 + 2] = p.z;
+            }
+
+            const owners = new Int8Array(count).fill(-1);
+            let inside = 0;
+            for (let v = 0; v < count; v += 1) {
+              const x = world[v * 3];
+              const y = world[v * 3 + 1];
+              const z = world[v * 3 + 2];
+              for (let e = 0; e < envelopes.length; e += 1) {
+                const env = envelopes[e];
+                if (Math.abs(x - env.centre.x) > env.halfWidth * 1.08 + 0.005) continue;
+                if (Math.hypot(y - env.centre.y, z - env.centre.z) > env.radius * 1.02) continue;
+                owners[v] = e;
+                inside += 1;
+                break;
+              }
+            }
+            if (!inside) continue;
+
+            const keptPos = [];
+            const keptNor = [];
+            let moved = 0;
+            for (let t = 0; t + 2 < count; t += 3) {
+              const own = owners[t];
+              const wheel = own >= 0 && own === owners[t + 1] && own === owners[t + 2] ? own : -1;
+              if (wheel >= 0) {
+                moved += 1;
+                envelopes[wheel].swept += 1;
+                const bucket = buckets[envelopes[wheel].key];
+                for (let k = 0; k < 3; k += 1) {
+                  const v = t + k;
+                  bucket.pos.push(world[v * 3], world[v * 3 + 1], world[v * 3 + 2]);
+                  if (!nor) continue;
+                  const at = index ? index.getX(v) : v;
+                  n.fromBufferAttribute(nor, at).transformDirection(mesh.matrixWorld);
+                  bucket.nor.push(n.x, n.y, n.z);
+                }
+                continue;
+              }
+              for (let k = 0; k < 3; k += 1) {
+                const v = t + k;
+                keptPos.push(world[v * 3], world[v * 3 + 1], world[v * 3 + 2]);
+                if (!nor) continue;
+                const at = index ? index.getX(v) : v;
+                n.fromBufferAttribute(nor, at).transformDirection(mesh.matrixWorld);
+                keptNor.push(n.x, n.y, n.z);
+              }
+            }
+            if (!moved) continue;
+            mesh.parent?.remove(mesh);
+            if (!keptPos.length) continue;
+            const remnant = new THREE.BufferGeometry();
+            remnant.setAttribute('position', new THREE.Float32BufferAttribute(keptPos, 3));
+            if (keptNor.length === keptPos.length) {
+              remnant.setAttribute('normal', new THREE.Float32BufferAttribute(keptNor, 3));
+            } else {
+              remnant.computeVertexNormals();
+            }
+            const shell = new THREE.Mesh(remnant, mesh.material);
+            shell.name = mesh.name;
+            body.add(shell);
+          }
+        }
+
+        // Build the four wheel nodes around the measured axles.
+        const stats = [];
+        for (const env of envelopes) {
+          const bucket = buckets[env.key];
+          if (!bucket.pos.length) continue;
           const positions = new Float32Array(bucket.pos.length);
           for (let i = 0; i < bucket.pos.length; i += 3) {
-            positions[i] = bucket.pos[i] - centre.x;
-            positions[i + 1] = bucket.pos[i + 1] - centre.y;
-            positions[i + 2] = bucket.pos[i + 2] - centre.z;
+            positions[i] = bucket.pos[i] - env.centre.x;
+            positions[i + 1] = bucket.pos[i + 1] - env.centre.y;
+            positions[i + 2] = bucket.pos[i + 2] - env.centre.z;
           }
           const geometry = new THREE.BufferGeometry();
           geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
@@ -104,12 +234,22 @@
           const material = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.6, side: THREE.DoubleSide });
           const wheel = new THREE.Mesh(geometry, material);
           const group = new THREE.Group();
-          group.name = `wheel-${corner.key}`;
-          group.position.copy(centre);
+          group.name = `wheel-${env.key}`;
+          group.position.copy(env.centre);
           group.add(wheel);
           body.add(group);
-          const size = box.getSize(new THREE.Vector3());
-          stats.push({ key: corner.key, tris: bucket.pos.length / 9, radius: Math.max(size.y, size.z) / 2, centre: centre.toArray() });
+          let radius = 0;
+          for (let i = 0; i < positions.length; i += 3) {
+            radius = Math.max(radius, Math.hypot(positions[i + 1], positions[i + 2]));
+          }
+          stats.push({
+            key: env.key,
+            tris: bucket.pos.length / 9,
+            radius,
+            halfWidth: env.halfWidth,
+            centre: env.centre.toArray(),
+            swept: env.swept,
+          });
         }
 
         // the shell keeps the scan's own transform; wheel groups sit outside it
@@ -127,8 +267,8 @@
         const scene = new THREE.Scene();
         scene.add(body);
 
-        // does the shell still carry geometry inside a wheel envelope?
-        const envelopes = stats.map((s2) => ({ ...s2, halfWidth: 0 }));
+        // Does the shell still carry geometry inside a wheel envelope?
+        const leftover = envelopes.map(() => 0);
         body.traverse((o) => {
           if (!o.isMesh) return;
           let cur = o.parent;
@@ -138,16 +278,16 @@
           const count2 = idx2 ? idx2.count : pos2.count;
           const p2 = new THREE.Vector3();
           for (let t = 0; t + 2 < count2; t += 3) {
-            let cx = 0; let cy = 0; let cz = 0;
-            for (let k = 0; k < 3; k += 1) {
-              const at = idx2 ? idx2.getX(t + k) : t + k;
-              p2.fromBufferAttribute(pos2, at).applyMatrix4(o.matrixWorld);
-              cx += p2.x; cy += p2.y; cz += p2.z;
-            }
-            cx /= 3; cy /= 3; cz /= 3;
-            for (const env of envelopes) {
-              const r = Math.hypot(cy - env.centre[1], cz - env.centre[2]);
-              if (r < env.radius * 0.92 && Math.abs(cx - env.centre[0]) < env.radius * 0.6) env.leftover = (env.leftover ?? 0) + 1;
+            for (let e = 0; e < envelopes.length; e += 1) {
+              const env = envelopes[e];
+              let all = true;
+              for (let k = 0; k < 3; k += 1) {
+                const at = idx2 ? idx2.getX(t + k) : t + k;
+                p2.fromBufferAttribute(pos2, at).applyMatrix4(o.matrixWorld);
+                if (Math.abs(p2.x - env.centre.x) > env.halfWidth * 1.02) { all = false; break; }
+                if (Math.hypot(p2.y - env.centre.y, p2.z - env.centre.z) > env.radius * 0.99) { all = false; break; }
+              }
+              if (all) leftover[e] += 1;
             }
           }
         });
@@ -162,7 +302,7 @@
           const pos2 = o.geometry.getAttribute('position');
           bodyTris += (o.geometry.index ? o.geometry.index.count : pos2.count) / 3;
         });
-        return { base64: toBase64(buffer), stats, wheelMeshes: wheelMeshes.length, bodyTris };
+        return { base64: toBase64(buffer), stats, leftover, wheelMeshes: wheelMeshes.length, bodyTris };
       };
       window.__ready = true;
     </script>
