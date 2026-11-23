@@ -50,6 +50,17 @@
         const model = gltf.scene;
         model.updateMatrixWorld(true);
 
+        // A split scan already carries its four wheel nodes. Splitting it again
+        // would nest a second set of wheel-* groups inside the first, which the
+        // runtime's bindNamedWheels rejects, so refuse rather than corrupt it.
+        const splitNodes = [];
+        model.traverse((o) => {
+          if (/^wheel-(lf|rf|lr|rr)$/.test(o.name)) splitNodes.push(o.name);
+        });
+        if (splitNodes.length) {
+          throw new Error(`refusing to re-split: already has ${[...new Set(splitNodes)].join(', ')}`);
+        }
+
         const wheelMeshes = [];
         model.traverse((o) => {
           if (o.isMesh && WHEELISH.test(labelOf(o))) wheelMeshes.push(o);

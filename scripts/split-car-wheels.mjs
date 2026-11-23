@@ -44,6 +44,7 @@ page.on('console', (m) => { if (m.type() === 'error') console.log('console:', m.
 await page.goto('http://127.0.0.1:5180/.tmp-cars/split.html', { waitUntil: 'load', timeout: 60000 });
 await page.waitForFunction('window.__ready === true', { timeout: 60000 });
 
+let failures = 0;
 for (const file of files) {
   try {
     const result = await page.evaluate((f) => window.__split(f), file);
@@ -54,8 +55,10 @@ for (const file of files) {
     }
     console.log(`   leftover body tris inside tyres: [${result.leftover.join(', ')}]`);
   } catch (error) {
+    failures += 1;
     console.log(`\n== ${file} FAILED ${error.message}`);
   }
 }
 
 await browser.close();
+if (failures) process.exitCode = 1;
